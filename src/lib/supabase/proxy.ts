@@ -33,8 +33,13 @@ export const updateSession = async (request: NextRequest) => {
     },
   );
 
-  // refreshing token
-  await supabase.auth.getUser();
+  // Attempt to refresh the session, but don't fail if there's no valid token
+  try {
+    await supabase.auth.getUser();
+  } catch (error) {
+    // Silently handle token refresh errors - user may not be authenticated
+    // This is expected behavior for unauthenticated requests
+  }
 
   return supabaseResponse;
 };
