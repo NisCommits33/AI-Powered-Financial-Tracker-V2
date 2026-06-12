@@ -17,21 +17,17 @@ export default function TransactionsPage() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-6 w-full text-zinc-950 dark:text-zinc-50 pb-8">
-      {/* Header */}
-      <header className="flex justify-between items-center py-2">
-        <div>
-          <p className="text-xs font-bold text-zinc-400 dark:text-zinc-500 tracking-wider uppercase">Finance</p>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">All Transactions</h1>
-        </div>
-        <Button 
+    <div className="flex flex-col gap-6 w-full text-foreground pb-8">
+      {/* Action bar */}
+      <div className="flex justify-end -mt-2">
+        <Button
           onClick={() => setShowForm(true)}
           className="gap-2"
         >
           <Plus className="w-4 h-4" />
           New
         </Button>
-      </header>
+      </div>
 
       {/* Transaction List */}
       <TransactionList 

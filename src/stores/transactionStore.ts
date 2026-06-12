@@ -8,6 +8,7 @@ interface TransactionStore {
   setLoading: (loading: boolean) => void;
   addTransaction: (transaction: Transaction) => void;
   removeTransaction: (id: string) => void;
+  updateTransaction: (id: string, updates: Partial<Transaction>) => void;
 }
 
 export const useTransactionStore = create<TransactionStore>((set) => ({
@@ -19,4 +20,8 @@ export const useTransactionStore = create<TransactionStore>((set) => ({
     set((state) => ({ transactions: [transaction, ...state.transactions] })),
   removeTransaction: (id) =>
     set((state) => ({ transactions: state.transactions.filter((t) => t.id !== id) })),
+  updateTransaction: (id, updates) =>
+    set((state) => ({
+      transactions: state.transactions.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+    })),
 }));

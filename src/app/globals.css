@@ -4,10 +4,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Modern SaaS - Bold & Playful with Neutral Palette */
+/* Flat bright SaaS theme */
 @theme inline {
-  --color-primary: #2563eb;
-  --color-surface: oklch(98% 0 0 / 0.7);
+  --color-primary: var(--primary);
+  --color-surface: var(--surface);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -37,7 +37,6 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -47,77 +46,166 @@
   --radius-lg: 1rem;
   --radius-xl: 1.25rem;
   --radius-2xl: 1.5rem;
-  --radius-3xl: 2rem;
-  --radius-4xl: 2.5rem;
+  --radius-3xl: 1.75rem;
+  --radius-4xl: 2rem;
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #0f0f0f;
-  --card: #f8f8f8;
-  --card-foreground: #0f0f0f;
+  /* Light, neutral SaaS canvas */
+  --background: #f4f6f5;
+  --foreground: #131814;
+  --surface: #ffffff;
+
+  --card: #ffffff;
+  --card-foreground: #131814;
   --popover: #ffffff;
-  --popover-foreground: #0f0f0f;
-  --primary: #2563eb;
+  --popover-foreground: #131814;
+
+  --primary: #16a34a;
   --primary-foreground: #ffffff;
-  --secondary: #ef4444;
+
+  --secondary: #0f172a;
   --secondary-foreground: #ffffff;
-  --muted: #e4e4e7;
-  --muted-foreground: #71717a;
-  --accent: #ec4899;
-  --accent-foreground: #ffffff;
-  --destructive: #dc2626;
-  --border: #e4e4e7;
-  --input: #f4f4f5;
-  --ring: #2563eb;
-  --chart-1: #2563eb;
-  --chart-2: #ec4899;
-  --chart-3: #ef4444;
-  --chart-4: #f59e0b;
-  --chart-5: #10b981;
-  --radius: 0.75rem;
+
+  --muted: #eef1ef;
+  --muted-foreground: #71807a;
+
+  --accent: #dcfce7;
+  --accent-foreground: #166534;
+
+  --destructive: #e7493f;
+
+  --border: #e5e8e6;
+  --input: #f4f6f5;
+  --ring: #16a34a80;
+
+  --chart-1: #16a34a;
+  --chart-2: #0f172a;
+  --chart-3: #f59e0b;
+  --chart-4: #6366f1;
+  --chart-5: #e7493f;
+
   --sidebar: #ffffff;
-  --sidebar-foreground: #0f0f0f;
-  --sidebar-primary: #2563eb;
+  --sidebar-foreground: #131814;
+  --sidebar-primary: #16a34a;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #ec4899;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #e4e4e7;
-  --sidebar-ring: #2563eb;
+  --sidebar-accent: #dcfce7;
+  --sidebar-accent-foreground: #166534;
+  --sidebar-border: #e5e8e6;
+  --sidebar-ring: #16a34a80;
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #fafafa;
-  --card: #1a1a1a;
-  --card-foreground: #fafafa;
-  --popover: #1a1a1a;
-  --popover-foreground: #fafafa;
+  --background: #0e1311;
+  --foreground: #edf2ef;
+  --surface: #161c19;
+
+  --card: #161c19;
+  --card-foreground: #edf2ef;
+  --popover: #161c19;
+  --popover-foreground: #edf2ef;
+
+  --primary: #22c55e;
+  --primary-foreground: #0a0f0c;
+
+  --secondary: #e2e8f0;
+  --secondary-foreground: #0f172a;
+
+  --muted: #1e2622;
+  --muted-foreground: #94a39c;
+
+  --accent: #14532d;
+  --accent-foreground: #bbf7d0;
+
+  --destructive: #f0716a;
+
+  --border: #25302b;
+  --input: #1e2622;
+  --ring: #22c55e80;
+
+  --chart-1: #22c55e;
+  --chart-2: #e2e8f0;
+  --chart-3: #fbbf24;
+  --chart-4: #818cf8;
+  --chart-5: #f0716a;
+
+  --sidebar: #161c19;
+  --sidebar-foreground: #edf2ef;
+  --sidebar-primary: #22c55e;
+  --sidebar-primary-foreground: #0a0f0c;
+  --sidebar-accent: #14532d;
+  --sidebar-accent-foreground: #bbf7d0;
+  --sidebar-border: #25302b;
+  --sidebar-ring: #22c55e80;
+}
+
+/* ---- Color theme variants (toggle via .theme-* on <html>) ---- */
+.theme-green {
+  --primary: #16a34a;
+  --primary-foreground: #ffffff;
+  --accent: #dcfce7;
+  --accent-foreground: #166534;
+  --ring: #16a34a80;
+  --chart-1: #16a34a;
+}
+.dark.theme-green {
+  --primary: #22c55e;
+  --primary-foreground: #0a0f0c;
+  --accent: #14532d;
+  --accent-foreground: #bbf7d0;
+  --ring: #22c55e80;
+  --chart-1: #22c55e;
+}
+
+.theme-terracotta {
+  --primary: #d97757;
+  --primary-foreground: #ffffff;
+  --accent: #fde8df;
+  --accent-foreground: #9a3b1c;
+  --ring: #d9775780;
+  --chart-1: #d97757;
+}
+.dark.theme-terracotta {
+  --primary: #e08a68;
+  --primary-foreground: #1a0f0a;
+  --accent: #4a2516;
+  --accent-foreground: #fbd6c4;
+  --ring: #e0866880;
+  --chart-1: #e08a68;
+}
+
+.theme-blue {
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --accent: #dbeafe;
+  --accent-foreground: #1e40af;
+  --ring: #2563eb80;
+  --chart-1: #2563eb;
+}
+.dark.theme-blue {
   --primary: #3b82f6;
-  --primary-foreground: #0a0a0a;
-  --secondary: #f87171;
-  --secondary-foreground: #0a0a0a;
-  --muted: #404040;
-  --muted-foreground: #a1a1a1;
-  --accent: #f472b6;
-  --accent-foreground: #0a0a0a;
-  --destructive: #ef4444;
-  --border: #2a2a2a;
-  --input: #1a1a1a;
-  --ring: #3b82f6;
+  --primary-foreground: #08101f;
+  --accent: #1e3a5f;
+  --accent-foreground: #bfdbfe;
+  --ring: #3b82f680;
   --chart-1: #3b82f6;
-  --chart-2: #f472b6;
-  --chart-3: #f87171;
-  --chart-4: #facc15;
-  --chart-5: #34d399;
-  --sidebar: #1a1a1a;
-  --sidebar-foreground: #fafafa;
-  --sidebar-primary: #3b82f6;
-  --sidebar-primary-foreground: #0a0a0a;
-  --sidebar-accent: #f472b6;
-  --sidebar-accent-foreground: #0a0a0a;
-  --sidebar-border: #2a2a2a;
-  --sidebar-ring: #3b82f6;
+}
+
+.theme-purple {
+  --primary: #7c3aed;
+  --primary-foreground: #ffffff;
+  --accent: #ede9fe;
+  --accent-foreground: #5b21b6;
+  --ring: #7c3aed80;
+  --chart-1: #7c3aed;
+}
+.dark.theme-purple {
+  --primary: #a78bfa;
+  --primary-foreground: #150f24;
+  --accent: #3b2a6b;
+  --accent-foreground: #ede9fe;
+  --ring: #a78bfa80;
+  --chart-1: #a78bfa;
 }
 
 @layer base {
@@ -132,44 +220,95 @@
   }
 }
 
-/* Modern SaaS Card & Utilities */
+/* Flat card / surface primitives */
 .glass-card {
-  background: #ffffff;
-  border: 1px solid #e4e4e7;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px rgba(15, 23, 20, 0.04);
+  transition: box-shadow 0.2s ease, transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
 
 .glass-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.dark .glass-card {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 16px rgba(15, 23, 20, 0.06);
 }
 
 .dark .glass-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- Card style variants (toggle via .card-style-* on <html>) ---- */
+.card-style-elevated .glass-card {
+  border: none;
+  box-shadow: 0 8px 24px rgba(15, 23, 20, 0.08);
+}
+.dark.card-style-elevated .glass-card {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.card-style-elevated .glass-card:hover {
+  box-shadow: 0 12px 32px rgba(15, 23, 20, 0.12);
+}
+.dark.card-style-elevated .glass-card:hover {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
+.card-style-outlined .glass-card {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  box-shadow: none;
+}
+.card-style-outlined .glass-card:hover {
+  box-shadow: none;
+  border-color: var(--primary);
+}
+
+.card-style-soft .glass-card {
+  background: var(--muted);
+  border: none;
+  box-shadow: none;
+}
+.card-style-soft .glass-card:hover {
+  box-shadow: none;
+  background: var(--accent);
+}
+
+/* ---- Button radius variants (toggle via .btn-radius-* on <html>) ---- */
+:root {
+  --btn-radius: var(--radius-xl);
+}
+.btn-radius-none {
+  --btn-radius: 0.375rem;
+}
+.btn-radius-sm {
+  --btn-radius: var(--radius-md);
+}
+.btn-radius-lg {
+  --btn-radius: var(--radius-xl);
+}
+.btn-radius-full {
+  --btn-radius: 999px;
+}
+
+.glass-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 .glass-border {
-  border-color: #e4e4e7;
-}
-
-.dark .glass-border {
-  border-color: #2a2a2a;
+  border-color: var(--border);
 }
 
 .capsule-nav {
-  background: #ffffff;
-  border: 1px solid #e4e4e7;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(15, 23, 20, 0.06);
 }
 
 .dark .capsule-nav {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* decorative blobs are unused in the flat theme */
+.glass-blob {
+  display: none;
 }

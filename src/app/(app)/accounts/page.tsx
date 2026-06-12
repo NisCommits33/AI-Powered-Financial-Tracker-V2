@@ -4,10 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import { motion } from "motion/react";
 import { AccountList } from "@/components/accounts/AccountList";
 import { AccountForm } from "@/components/accounts/AccountForm";
-import { BottomNav } from "@/components/layout/BottomNav";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Plus } from "lucide-react";
+import { Plus, Wallet } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +47,13 @@ export default function AccountsPage() {
     }
   };
 
+  const handleOpenChange = (open: boolean) => {
+    setIsModalOpen(open);
+    if (!open) {
+      setSelectedAccount(undefined);
+    }
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedAccount(undefined);
@@ -55,62 +61,60 @@ export default function AccountsPage() {
   };
 
   return (
-    <div className="min-h-screen pb-20">
-      <div className="container max-w-md mx-auto p-4">
+    <div className="flex flex-col gap-6 w-full text-foreground pb-8">
+      {/* Action bar */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex justify-end -mt-2"
+      >
+        <Dialog open={isModalOpen} onOpenChange={handleOpenChange}>
+          <DialogTrigger asChild>
+            <Button size="icon" aria-label="Add account">
+              <Plus className="h-5 w-5" />
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedAccount ? "Edit Account" : "Add Account"}
+              </DialogTitle>
+            </DialogHeader>
+            <AccountForm
+              account={selectedAccount}
+              onSuccess={handleCloseModal}
+            />
+          </DialogContent>
+        </Dialog>
+      </motion.div>
+
+      {/* Total Balance Card */}
+      {accounts.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex justify-between items-center mb-6 pt-4"
         >
-          <h1 className="text-3xl font-bold text-white">Accounts</h1>
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="icon"
-                className="rounded-full bg-primary hover:bg-primary-dark"
-              >
-                <Plus className="h-5 w-5" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="glass-card border-glass-border max-w-md">
-              <DialogHeader>
-                <DialogTitle className="text-white">
-                  {selectedAccount ? "Edit Account" : "Add Account"}
-                </DialogTitle>
-              </DialogHeader>
-              <AccountForm
-                account={selectedAccount}
-                onSuccess={handleCloseModal}
-              />
-            </DialogContent>
-          </Dialog>
+          <Card className="p-8 bg-gradient-to-br from-primary/15 via-card to-card">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center text-primary">
+                <Wallet className="w-4 h-4" />
+              </div>
+              <p className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">Total Balance</p>
+            </div>
+            <h2 className="text-4xl font-black tracking-tight text-foreground">
+              {formatNPR(totalBalance)}
+            </h2>
+          </Card>
         </motion.div>
+      )}
 
-        {/* Total Balance Card */}
-        {accounts.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6"
-          >
-            <Card className="glass-card border-glass-border p-6 bg-gradient-to-br from-primary/20 to-primary/5">
-              <p className="text-white/60 text-sm mb-2">Total Balance</p>
-              <h2 className="text-4xl font-bold text-white">
-                {formatNPR(totalBalance)}
-              </h2>
-            </Card>
-          </motion.div>
-        )}
-
-        <AccountList
-          accounts={accounts}
-          loading={loading}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onRefresh={fetchAccounts}
-        />
-      </div>
-      <BottomNav />
+      <AccountList
+        accounts={accounts}
+        loading={loading}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onRefresh={fetchAccounts}
+      />
     </div>
   );
 }

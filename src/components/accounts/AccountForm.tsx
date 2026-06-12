@@ -43,7 +43,7 @@ export function AccountForm({ account, onSuccess }: AccountFormProps) {
     formState: { errors },
     setValue,
   } = useForm<AccountFormData>({
-    resolver: zodResolver(accountSchema),
+    resolver: zodResolver(accountSchema) as any,
     defaultValues: account || {
       name: "",
       type: "checking",
@@ -80,27 +80,26 @@ export function AccountForm({ account, onSuccess }: AccountFormProps) {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       {/* Account Name */}
       <div className="space-y-2">
-        <Label htmlFor="name" className="text-white">
+        <Label htmlFor="name">
           Account Name
         </Label>
         <Input
           id="name"
           placeholder="e.g., Checking Account"
-          className="bg-white/10 border-glass-border text-white placeholder:text-white/50"
           {...register("name")}
         />
         {errors.name && (
-          <p className="text-rose-400 text-sm">{errors.name.message}</p>
+          <p className="text-destructive text-sm">{errors.name.message}</p>
         )}
       </div>
 
       {/* Type */}
       <div className="space-y-2">
-        <Label htmlFor="type" className="text-white">
+        <Label htmlFor="type">
           Account Type
         </Label>
-        <Select value={selectedType} onValueChange={setSelectedType}>
-          <SelectTrigger className="bg-white/10 border-glass-border text-white">
+        <Select value={selectedType} onValueChange={(v) => setSelectedType(v as Account["type"])}>
+          <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -111,13 +110,13 @@ export function AccountForm({ account, onSuccess }: AccountFormProps) {
           </SelectContent>
         </Select>
         {errors.type && (
-          <p className="text-rose-400 text-sm">{errors.type.message}</p>
+          <p className="text-destructive text-sm">{errors.type.message}</p>
         )}
       </div>
 
       {/* Balance */}
       <div className="space-y-2">
-        <Label htmlFor="balance" className="text-white">
+        <Label htmlFor="balance">
           Balance (NPR)
         </Label>
         <Input
@@ -125,17 +124,16 @@ export function AccountForm({ account, onSuccess }: AccountFormProps) {
           type="number"
           placeholder="0"
           step="0.01"
-          className="bg-white/10 border-glass-border text-white placeholder:text-white/50"
           {...register("balance")}
         />
         {errors.balance && (
-          <p className="text-rose-400 text-sm">{errors.balance.message}</p>
+          <p className="text-destructive text-sm">{errors.balance.message}</p>
         )}
       </div>
 
       {/* Color Tag */}
       <div className="space-y-2">
-        <Label className="text-white">Color Tag</Label>
+        <Label>Color Tag</Label>
         <div className="flex gap-2 flex-wrap">
           {colors.map((color) => (
             <button
@@ -144,8 +142,8 @@ export function AccountForm({ account, onSuccess }: AccountFormProps) {
               onClick={() => setSelectedColor(color)}
               className={`w-8 h-8 rounded-full border-2 transition-all ${
                 selectedColor === color
-                  ? "border-white scale-110"
-                  : "border-white/30"
+                  ? "border-foreground scale-110"
+                  : "border-border"
               }`}
               style={{ backgroundColor: color }}
             />
@@ -156,7 +154,7 @@ export function AccountForm({ account, onSuccess }: AccountFormProps) {
       <Button
         type="submit"
         disabled={loading}
-        className="w-full bg-primary hover:bg-primary-dark text-white"
+        className="w-full"
       >
         {loading ? "Saving..." : account ? "Update Account" : "Add Account"}
       </Button>

@@ -1,5 +1,6 @@
 import { useBudgetStore } from "@/stores/budgetStore";
 import { createClientComponentClient } from "@/lib/supabase/client";
+import { currentMonthStart } from "@/lib/utils";
 import { Budget } from "@/types";
 
 export function useBudgets() {
@@ -7,11 +8,15 @@ export function useBudgets() {
   const { budgets, loading, setBudgets, setLoading, addBudget, updateBudget, removeBudget } =
     useBudgetStore();
 
-  const fetchBudgets = async () => {
+  // Defaults to the current month so the budgets page / dashboard only ever show
+  // the active month's budgets, not every budget ever created. Pass a "YYYY-MM-01"
+  // string to load a specific month's budgets instead.
+  const fetchBudgets = async (month: string = currentMonthStart()) => {
     setLoading(true);
     const { data } = await supabase
       .from("budgets")
       .select("*")
+      .eq("month", month)
       .order("category");
     if (data) setBudgets(data);
     setLoading(false);

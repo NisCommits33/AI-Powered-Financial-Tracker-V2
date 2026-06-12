@@ -8,6 +8,7 @@ interface AccountStore {
   setLoading: (loading: boolean) => void;
   addAccount: (account: Account) => void;
   removeAccount: (id: string) => void;
+  updateAccount: (id: string, updates: Partial<Account>) => void;
 }
 
 export const useAccountStore = create<AccountStore>((set) => ({
@@ -19,4 +20,8 @@ export const useAccountStore = create<AccountStore>((set) => ({
     set((state) => ({ accounts: [account, ...state.accounts] })),
   removeAccount: (id) =>
     set((state) => ({ accounts: state.accounts.filter((a) => a.id !== id) })),
+  updateAccount: (id, updates) =>
+    set((state) => ({
+      accounts: state.accounts.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+    })),
 }));
