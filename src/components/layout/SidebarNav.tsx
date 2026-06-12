@@ -10,6 +10,7 @@ import {
   PiggyBank,
   MessageSquare,
   Settings,
+  User,
   Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ const navItems = [
 
 const secondaryNavItems = [
   { id: "settings", label: "Settings", href: "/settings", icon: Settings },
+  { id: "profile", label: "Profile", href: "/profile", icon: User },
 ];
 
 export default function SidebarNav() {

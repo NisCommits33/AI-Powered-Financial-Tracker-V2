@@ -20,7 +20,7 @@ import { useState } from "react";
 const accountSchema = z.object({
   name: z.string().min(1, "Account name is required"),
   type: z.enum(["checking", "savings", "cash", "ewallet"]),
-  balance: z.string().transform((val) => parseFloat(val) || 0),
+  balance: z.coerce.number({ error: "Balance must be a number" }),
   currency: z.string().default("NPR"),
   color_tag: z.string().optional(),
 });

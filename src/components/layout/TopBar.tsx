@@ -12,6 +12,7 @@ const titles: Record<string, { title: string; subtitle: string }> = {
   "/budgets": { title: "Budgets", subtitle: "Finance" },
   "/chat": { title: "Ask FinWise", subtitle: "Grok Chat" },
   "/settings": { title: "Settings", subtitle: "Preferences" },
+  "/profile": { title: "Profile", subtitle: "Account" },
 };
 
 export default function TopBar() {
@@ -39,9 +40,13 @@ export default function TopBar() {
           >
             <Settings className="w-4 h-4" />
           </Link>
-          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground text-sm shadow-sm shadow-primary/30 shrink-0">
+          <Link
+            href="/profile"
+            className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground text-sm shadow-sm shadow-primary/30 shrink-0"
+            aria-label="Profile"
+          >
             U
-          </div>
+          </Link>
         </div>
       </div>
     </header>

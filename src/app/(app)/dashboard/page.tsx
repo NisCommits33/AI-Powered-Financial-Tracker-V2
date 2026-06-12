@@ -10,6 +10,8 @@ import {
   Sparkles,
   Plus,
   Send,
+  TrendingDown,
+  Repeat,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -30,6 +32,13 @@ import {
   RadialBar,
   PolarAngleAxis,
 } from "recharts";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useBudgets } from "@/hooks/useBudgets";
 import { useTransactions } from "@/hooks/useTransactions";
@@ -86,6 +95,28 @@ export default function DashboardPage() {
 
   const topBudgets = useMemo(() => budgets.slice(0, 3), [budgets]);
 
+  // Largest single expense this month
+  const biggestExpense = useMemo(() => {
+    const expenseTxns = thisMonthTransactions.filter((t) => t.amount < 0);
+    if (expenseTxns.length === 0) return null;
+    return expenseTxns.reduce((max, t) => (Math.abs(t.amount) > Math.abs(max.amount) ? t : max));
+  }, [thisMonthTransactions]);
+
+  // Most recent recurring transactions (subscriptions/bills)
+  const recurringBills = useMemo(() => {
+    const seen = new Set<string>();
+    const result: typeof transactions = [];
+    for (const t of transactions) {
+      if (t.amount >= 0 || !t.tags?.includes("recurring")) continue;
+      const key = t.description || t.category;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(t);
+      if (result.length === 4) break;
+    }
+    return result;
+  }, [transactions]);
+
   // Cashflow: last 6 months income vs expense
   const cashflowData = useMemo(() => {
     const months: { key: string; label: string; income: number; expense: number }[] = [];
@@ -111,7 +142,7 @@ export default function DashboardPage() {
   }, [transactions]);
 
   // Category breakdown for current month expenses
-  const categoryData = useMemo(() => {
+  const allCategoryData = useMemo(() => {
     const map = new Map<string, number>();
     thisMonthTransactions
       .filter((t) => t.amount < 0)
@@ -120,9 +151,10 @@ export default function DashboardPage() {
       });
     return Array.from(map.entries())
       .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
+      .sort((a, b) => b.value - a.value);
   }, [thisMonthTransactions]);
+
+  const categoryData = useMemo(() => allCategoryData.slice(0, 5), [allCategoryData]);
 
   const recentTransactions = useMemo(() => transactions.slice(0, 5), [transactions]);
 
@@ -136,6 +168,16 @@ export default function DashboardPage() {
       return { label: m.label, value: running };
     });
   }, [cashflowData, netWorth]);
+
+  // Month-over-month change in net worth, for the Total Balance hero
+  const netWorthChange = useMemo(() => {
+    if (netWorthTrendData.length < 2) return null;
+    const prev = netWorthTrendData[netWorthTrendData.length - 2].value;
+    const curr = netWorthTrendData[netWorthTrendData.length - 1].value;
+    const diff = curr - prev;
+    const pct = prev !== 0 ? (diff / Math.abs(prev)) * 100 : 0;
+    return { diff, pct };
+  }, [netWorthTrendData]);
 
   // Account balance distribution
   const accountDistributionData = useMemo(() => {
@@ -253,21 +295,68 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
         {/* Total Balance hero */}
         <section className="sm:col-span-2 lg:col-span-2 lg:row-span-2 bg-primary text-primary-foreground rounded-2xl p-8 flex flex-col justify-between gap-6 relative overflow-hidden">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider opacity-80 mb-2">Total Balance</p>
-            <h2 className="text-4xl md:text-5xl font-black tracking-tight">{formatNPR(netWorth)}</h2>
+          {/* Decorative glows */}
+          <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-white/10 blur-3xl animate-pulse-slow pointer-events-none" />
+          <div className="absolute -bottom-20 -left-10 w-48 h-48 rounded-full bg-white/10 blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider opacity-80 mb-2">Total Balance</p>
+              <h2 className="text-4xl md:text-5xl font-black tracking-tight animate-in fade-in slide-in-from-bottom-2 duration-500">
+                {formatNPR(netWorth)}
+              </h2>
+              {netWorthChange && (
+                <div
+                  className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${
+                    netWorthChange.diff >= 0 ? "bg-white/15 text-white" : "bg-black/15 text-white"
+                  }`}
+                >
+                  {netWorthChange.diff >= 0 ? (
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  ) : (
+                    <ArrowDownRight className="w-3.5 h-3.5" />
+                  )}
+                  {Math.abs(netWorthChange.pct).toFixed(1)}% this month
+                </div>
+              )}
+            </div>
+
+            {/* Mini net worth trend sparkline */}
+            {netWorthTrendData.length > 1 && (
+              <div className="hidden sm:block w-28 h-16 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={netWorthTrendData}>
+                    <defs>
+                      <linearGradient id="heroSparkline" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="white" stopOpacity={0.5} />
+                        <stop offset="100%" stopColor="white" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="white"
+                      strokeWidth={2}
+                      fill="url(#heroSparkline)"
+                      isAnimationActive
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
-          <div className="flex gap-3">
+
+          <div className="relative z-10 flex gap-3">
             <button
               onClick={openNLModal}
-              className="flex items-center gap-2 rounded-xl bg-white/15 hover:bg-white/25 px-5 py-2.5 text-sm font-semibold transition-colors"
+              className="flex items-center gap-2 rounded-xl bg-white/15 hover:bg-white/25 hover:scale-[1.03] active:scale-[0.98] px-5 py-2.5 text-sm font-semibold transition-all duration-200"
             >
               <Plus className="w-4 h-4" />
               Add Transaction
             </button>
             <Link
               href="/transactions"
-              className="flex items-center gap-2 rounded-xl bg-white/95 text-primary px-5 py-2.5 text-sm font-semibold hover:bg-white transition-colors"
+              className="flex items-center gap-2 rounded-xl bg-white/95 text-primary px-5 py-2.5 text-sm font-semibold hover:bg-white hover:scale-[1.03] active:scale-[0.98] transition-all duration-200"
             >
               <Send className="w-4 h-4" />
               View All
@@ -340,6 +429,47 @@ export default function DashboardPage() {
               })
             ) : (
               <p className="text-sm text-muted-foreground">No budgets set</p>
+            )}
+          </div>
+        </section>
+
+        {/* Biggest expense this month */}
+        <section className="glass-card p-6 flex flex-col justify-between gap-4">
+          <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center text-destructive">
+            <TrendingDown className="w-5 h-5" />
+          </div>
+          {biggestExpense ? (
+            <div>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Biggest Expense</p>
+              <p className="text-2xl font-bold text-foreground">{formatNPR(Math.abs(biggestExpense.amount))}</p>
+              <p className="text-xs text-muted-foreground mt-1 truncate">
+                {biggestExpense.description || biggestExpense.category}
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Biggest Expense</p>
+              <p className="text-sm text-muted-foreground">No expenses yet</p>
+            </div>
+          )}
+        </section>
+
+        {/* Recurring bills */}
+        <section className="glass-card p-6 flex flex-col gap-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xs font-bold tracking-wider text-muted-foreground uppercase">Recurring Bills</h3>
+            <Repeat className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex flex-col gap-3">
+            {recurringBills.length > 0 ? (
+              recurringBills.map((t) => (
+                <div key={t.id} className="flex items-center justify-between text-sm">
+                  <span className="text-foreground font-medium truncate">{t.description || t.category}</span>
+                  <span className="text-foreground font-semibold shrink-0 ml-2">{formatNPR(Math.abs(t.amount))}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No recurring bills tracked</p>
             )}
           </div>
         </section>
@@ -691,7 +821,42 @@ export default function DashboardPage() {
         {/* Category breakdown donut */}
         {enabledCharts.includes("category") && (
         <section className="sm:col-span-2 lg:col-span-2 glass-card p-6 flex flex-col gap-4">
-          <h3 className="text-xs font-bold tracking-wider text-muted-foreground uppercase">Spending by Category</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold tracking-wider text-muted-foreground uppercase">Spending by Category</h3>
+            {allCategoryData.length > 5 && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <button className="text-xs font-bold text-primary hover:underline">See all</button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Spending by Category</DialogTitle>
+                  </DialogHeader>
+                  <div className="flex flex-col gap-2 max-h-96 overflow-y-auto">
+                    {allCategoryData.map((c, i) => {
+                      const total = allCategoryData.reduce((sum, x) => sum + x.value, 0);
+                      const pct = total > 0 ? Math.round((c.value / total) * 100) : 0;
+                      return (
+                        <div key={c.name} className="flex items-center justify-between text-sm py-1">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }}
+                            />
+                            <span className="text-foreground font-medium">{c.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-muted-foreground text-xs">{pct}%</span>
+                            <span className="text-foreground font-semibold">{formatNPR(c.value)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
           {categoryData.length > 0 ? (
             <div className="flex items-center gap-4">
               <div className="h-40 w-40 shrink-0">
