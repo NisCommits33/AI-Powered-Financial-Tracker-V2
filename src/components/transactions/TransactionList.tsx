@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Transaction } from "@/types";
+import { Transaction, Account } from "@/types";
 import { formatNPR, formatDate } from "@/lib/utils";
 import {
   Search,
@@ -45,6 +45,8 @@ interface TransactionListProps {
   transactions: Transaction[];
   loading?: boolean;
   onRefresh: () => void;
+  accounts?: Account[];
+  initialAccountFilter?: string;
 }
 
 const categories = ["All", ...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES.filter((c) => c !== "Other")];
@@ -72,14 +74,19 @@ const PAGE_SIZE = 10;
 
 type TypeFilter = "all" | "income" | "expense";
 
-export function TransactionList({ transactions, loading, onRefresh }: TransactionListProps) {
+export function TransactionList({ transactions, loading, onRefresh, accounts, initialAccountFilter }: TransactionListProps) {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [accountFilter, setAccountFilter] = useState(initialAccountFilter || "All");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [page, setPage] = useState(1);
   const { softDeleteTransaction } = useTransactions();
+
+  useEffect(() => {
+    if (initialAccountFilter) setAccountFilter(initialAccountFilter);
+  }, [initialAccountFilter]);
 
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
@@ -87,12 +94,13 @@ export function TransactionList({ transactions, loading, onRefresh }: Transactio
       const matchesCategory = categoryFilter === "All" || t.category === categoryFilter;
       const matchesType =
         typeFilter === "all" || (typeFilter === "income" ? t.amount > 0 : t.amount < 0);
+      const matchesAccount = accountFilter === "All" || t.account_id === accountFilter;
       const txDate = t.date.slice(0, 10);
       const matchesStart = !startDate || txDate >= startDate;
       const matchesEnd = !endDate || txDate <= endDate;
-      return matchesSearch && matchesCategory && matchesType && matchesStart && matchesEnd;
+      return matchesSearch && matchesCategory && matchesType && matchesAccount && matchesStart && matchesEnd;
     });
-  }, [transactions, search, categoryFilter, typeFilter, startDate, endDate]);
+  }, [transactions, search, categoryFilter, typeFilter, accountFilter, startDate, endDate]);
 
   const totals = useMemo(() => {
     const income = filtered.filter((t) => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
@@ -103,7 +111,7 @@ export function TransactionList({ transactions, loading, onRefresh }: Transactio
   // Reset to first page whenever filters change
   useEffect(() => {
     setPage(1);
-  }, [search, categoryFilter, typeFilter, startDate, endDate]);
+  }, [search, categoryFilter, typeFilter, accountFilter, startDate, endDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -198,6 +206,21 @@ export function TransactionList({ transactions, loading, onRefresh }: Transactio
             ))}
           </SelectContent>
         </Select>
+        {accounts && accounts.length > 0 && (
+          <Select value={accountFilter} onValueChange={setAccountFilter}>
+            <SelectTrigger className="w-full sm:w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Accounts</SelectItem>
+              {accounts.map((acc) => (
+                <SelectItem key={acc.id} value={acc.id}>
+                  {acc.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <div className="flex items-center gap-2">
           <Input
             type="date"

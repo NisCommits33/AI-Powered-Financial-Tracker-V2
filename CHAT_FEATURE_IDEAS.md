@@ -6,14 +6,14 @@ A catalog of features the FinWise chat assistant could grow into, organized by c
 
 ## 1. Conversational Insights (Q&A)
 - ✅ Net worth, income/expense, budget status Q&A (existing system prompt context)
-- Spending trend analysis ("Am I spending more than last month?")
-- Category deep-dives ("Why did my Food spending spike in May?")
-- Anomaly explanations ("What's that NPR 5,000 charge on June 3rd?")
-- Forecast / projection ("At this rate, will I hit my savings goal by December?")
-- Comparison across time periods ("Compare my spending this month vs last 3 months average")
-- "What-if" simulations ("If I cut dining out by 30%, how much would I save per year?")
-- Subscription/recurring charge audit ("List all my recurring payments and their total")
-- Cash flow runway ("How many months can I survive on my current balance if income stops?")
+- ✅ Spending trend analysis ("Am I spending more than last month?") — 6-month income/expense history added to system prompt
+- ✅ Comparison across time periods ("Compare my spending this month vs last 3 months average") — covered by the same 6-month history
+- ✅ "What-if" simulations ("If I cut dining out by 30%, how much would I save per year?") — model does arithmetic from supplied data
+- ✅ Category deep-dives ("Why did my Food spending spike in May?") — per-month category spending breakdown added to system prompt
+- ✅ Anomaly explanations ("What's that NPR 5,000 charge on June 3rd?") — Recent Transactions now flag entries marked `[flagged as anomaly]`
+- ✅ Forecast / projection ("At this rate, will I hit my savings goal by December?") — average monthly income/expenses/savings added to system prompt; model asks for goal amount/date if not given
+- ✅ Subscription/recurring charge audit ("List all my recurring payments and their total") — recurring-tagged transactions and their total added to system prompt
+- ✅ Cash flow runway ("How many months can I survive on my current balance if income stops?") — estimated runway (net worth / avg monthly expenses) added to system prompt
 
 ## 2. Agentic Actions (Confirmation-Card Flow)
 - ✅ create_transaction, edit_transaction, delete_transaction
@@ -21,10 +21,10 @@ A catalog of features the FinWise chat assistant could grow into, organized by c
 - ✅ set_budget
 - ✅ set_accent_color, set_card_style, set_button_radius, set_theme_mode
 - ✅ set_dashboard_charts
+- ✅ Recurring transaction setup ("Add my rent of 15000 every month on the 1st") — create_transaction supports a `recurring` flag, tags the entry "recurring"
 - Bulk transaction import via chat ("I spent 200 on coffee, 1500 on groceries, and 50 on bus today")
 - Transfer money between accounts (create paired transactions)
 - Archive/restore accounts via chat
-- Recurring transaction setup ("Add my rent of 15000 every month on the 1st")
 - Goal creation/management ("Create a savings goal of 100000 by December")
 - Tag management (create/rename/merge tags via chat)
 - Category rename/merge ("Merge 'Dining' into 'Food'")
@@ -48,9 +48,9 @@ A catalog of features the FinWise chat assistant could grow into, organized by c
 - Pin/save favorite questions or reports
 
 ## 5. Visualization-in-Chat
-- Inline mini-charts in chat responses (sparkline of spending trend, category pie)
+- ✅ Inline mini-charts in chat responses (category pie, 6-month income/expense trend) — `show_chart` tool + ChatChart component
+- ✅ "Show me a chart of X" → renders a Recharts component inline
 - Render a small table for multi-row answers (e.g., budget breakdown)
-- "Show me a chart of X" → renders a Recharts component inline
 - Shareable/exportable summary cards (image or PDF of a chat answer)
 
 ## 6. Financial Coaching / Education
@@ -78,23 +78,28 @@ A catalog of features the FinWise chat assistant could grow into, organized by c
 
 ## 10. Safety, Trust & Control
 - ✅ Claude-style confirmation cards before any mutation
+- ✅ Rate limiting / cost-aware usage indicator for LLM calls — header shows remaining daily tokens per model, plus multi-key fallback on 429
 - Action history / audit log ("Show me what changes you made for me this week")
 - Granular permission toggles ("Don't let AI change my theme settings")
 - Explainability ("Why do you think this transaction is an anomaly?")
-- Rate limiting / cost-aware usage indicator for LLM calls
 
 ## 11. Performance & UX Polish
-- Streaming responses (token-by-token) instead of waiting for full reply
+- ✅ Streaming responses (token-by-token) instead of waiting for full reply
+- ✅ Conversation history persistence across sessions (currently resets on reload)
+- ✅ Multiple conversation threads ("New chat" / chat history sidebar)
 - Typing indicators per tool call ("Looking up your accounts...")
-- Conversation history persistence across sessions (currently resets on reload)
-- Multiple conversation threads ("New chat" / chat history sidebar)
 - Quick-reply buttons for common follow-ups
 
 ---
 
 ## Suggested Near-Term Priorities
-1. **Conversation persistence** — store chat history in Supabase so it survives reloads.
-2. **Streaming replies** — noticeably improves perceived speed for Groq responses.
-3. **Recurring transaction tool** — high-value agentic action, builds on existing schema.
-4. **Inline mini-charts** — leverages existing Recharts setup for richer answers.
-5. **Daily/weekly digest** — reuses the suggestions-route data-fetching pattern.
+1. ✅ **Conversation persistence** — store chat history in Supabase so it survives reloads.
+2. ✅ **Streaming replies** — noticeably improves perceived speed for Groq responses.
+3. ✅ **Recurring transaction tool** — high-value agentic action, builds on existing schema.
+4. ✅ **Inline mini-charts** — leverages existing Recharts setup for richer answers.
+5. **Daily/weekly digest** — reuses the suggestions-route data-fetching pattern. (not yet implemented)
+
+## Also completed (beyond the original near-term list)
+- Spending trend / comparison / what-if Q&A via expanded financial snapshot context
+- Multiple conversation threads with a history sidebar
+- Model picker (Llama 3.3 70B / 3.1 8B / Gemma2 9B) + daily token-usage indicator + multi-key fallback

@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { Account } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trash2, Edit2, Wallet, PiggyBank, Banknote, Smartphone } from "lucide-react";
 import { motion } from "motion/react";
 import { formatNPR } from "@/lib/utils";
+import { AccountTransactionsModal } from "@/components/accounts/AccountTransactionsModal";
 
 interface AccountListProps {
   accounts: Account[];
@@ -29,6 +31,8 @@ export function AccountList({
   onDelete,
   onRefresh,
 }: AccountListProps) {
+  const [viewingAccount, setViewingAccount] = useState<Account | undefined>();
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -49,6 +53,7 @@ export function AccountList({
   }
 
   return (
+    <>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {accounts.map((account, index) => {
         const Icon = typeIcons[account.type] || Wallet;
@@ -59,7 +64,12 @@ export function AccountList({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
           >
-            <Card className="p-5 hover:-translate-y-0.5 transition-all group relative">
+            <Card
+              className="p-5 hover:-translate-y-0.5 transition-all group relative cursor-pointer"
+              onClick={() => setViewingAccount(account)}
+              role="button"
+              title={`View ${account.name} transactions`}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div
@@ -81,7 +91,10 @@ export function AccountList({
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                    onClick={() => onEdit(account)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(account);
+                    }}
                     aria-label="Edit account"
                   >
                     <Edit2 className="h-3.5 w-3.5" />
@@ -90,7 +103,10 @@ export function AccountList({
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => onDelete(account.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(account.id);
+                    }}
                     aria-label="Delete account"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -109,5 +125,11 @@ export function AccountList({
         );
       })}
     </div>
+
+    <AccountTransactionsModal
+      account={viewingAccount}
+      onClose={() => setViewingAccount(undefined)}
+    />
+    </>
   );
 }

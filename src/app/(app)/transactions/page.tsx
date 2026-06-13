@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTransactions } from "@/hooks/useTransactions";
+import { useAccounts } from "@/hooks/useAccounts";
 import { TransactionList } from "@/components/transactions/TransactionList";
 import { TransactionForm } from "@/components/transactions/TransactionForm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,10 +12,14 @@ import { Plus } from "lucide-react";
 
 export default function TransactionsPage() {
   const { transactions, loading, fetchTransactions } = useTransactions();
+  const { accounts, fetchAccounts } = useAccounts();
   const [showForm, setShowForm] = useState(false);
+  const searchParams = useSearchParams();
+  const accountFilter = searchParams.get("account") || undefined;
 
   useEffect(() => {
     fetchTransactions();
+    fetchAccounts();
   }, []);
 
   return (
@@ -30,10 +36,12 @@ export default function TransactionsPage() {
       </div>
 
       {/* Transaction List */}
-      <TransactionList 
+      <TransactionList
         transactions={transactions}
         loading={loading}
         onRefresh={fetchTransactions}
+        accounts={accounts}
+        initialAccountFilter={accountFilter}
       />
 
       {/* Transaction Form Dialog */}

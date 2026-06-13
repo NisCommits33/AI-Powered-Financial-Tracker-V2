@@ -24,6 +24,33 @@ export function useAccounts() {
     setLoading(false);
   };
 
+  const fetchArchivedAccounts = async (): Promise<Account[]> => {
+    const { data } = await supabase
+      .from("accounts")
+      .select("*")
+      .is("is_archived", true)
+      .order("created_at");
+    return data || [];
+  };
+
+  const restoreAccount = async (accountId: string) => {
+    const { data, error } = await supabase
+      .from("accounts")
+      .update({ is_archived: false })
+      .eq("id", accountId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (data) addToStore(data);
+    return data;
+  };
+
+  const permanentlyDeleteAccount = async (accountId: string) => {
+    const { error } = await supabase.from("accounts").delete().eq("id", accountId);
+    if (error) throw error;
+  };
+
   const addAccount = async (
     accountData: Omit<Account, "id" | "created_at" | "is_archived">
   ) => {
@@ -75,8 +102,11 @@ export function useAccounts() {
     accounts,
     loading,
     fetchAccounts,
+    fetchArchivedAccounts,
     addAccount,
     updateAccountEntry,
     deleteAccount,
+    restoreAccount,
+    permanentlyDeleteAccount,
   };
 }
