@@ -3,6 +3,7 @@ import SidebarNav from "@/components/layout/SidebarNav";
 import FloatingAddButton from "@/components/layout/FloatingAddButton";
 import NLInputModal from "@/components/transactions/NLInputModal";
 import TopBar from "@/components/layout/TopBar";
+import ContentArea from "@/components/layout/ContentArea";
 
 export default function AppLayout({
   children,
@@ -15,12 +16,12 @@ export default function AppLayout({
       <SidebarNav />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col items-center w-full md:pl-72 md:pt-6">
+      <ContentArea>
         <main className="w-full max-w-md md:max-w-5xl px-4 pt-8 md:pt-0 flex-1 flex flex-col">
           <TopBar />
           {children}
         </main>
-      </div>
+      </ContentArea>
 
       {/* Floating Add Action - Mobile Only */}
       <FloatingAddButton />

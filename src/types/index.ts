@@ -31,6 +31,32 @@ export interface Budget {
   month: string;
 }
 
+export interface Goal {
+  id: string;
+  name: string;
+  target_amount: number;
+  current_amount: number;
+  target_date?: string | null;
+  account_id?: string | null;
+  icon?: string | null;
+  is_completed: boolean;
+  created_at: string;
+}
+
+export interface Debt {
+  id: string;
+  person: string;
+  direction: "owed_by_me" | "owed_to_me";
+  principal_amount: number;
+  remaining_amount: number;
+  interest_rate?: number | null;
+  due_date?: string | null;
+  notes?: string | null;
+  account_id?: string | null;
+  is_settled: boolean;
+  created_at: string;
+}
+
 export interface AIInsight {
   id: string;
   insight_type: string;

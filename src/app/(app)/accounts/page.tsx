@@ -5,9 +5,10 @@ import { motion } from "motion/react";
 import { AccountList } from "@/components/accounts/AccountList";
 import { AccountForm } from "@/components/accounts/AccountForm";
 import { ArchivedAccounts } from "@/components/accounts/ArchivedAccounts";
+import { TransferForm } from "@/components/accounts/TransferForm";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Plus, Wallet } from "lucide-react";
+import { ArrowLeftRight, Plus, Wallet } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,7 @@ export default function AccountsPage() {
   const { accounts, loading, fetchAccounts, deleteAccount } = useAccounts();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | undefined>();
+  const [isTransferOpen, setIsTransferOpen] = useState(false);
 
   useEffect(() => {
     fetchAccounts();
@@ -97,8 +99,28 @@ export default function AccountsPage() {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex justify-end -mt-2"
+        className="flex justify-end gap-2 -mt-2"
       >
+        <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
+          <DialogTrigger asChild>
+            <Button size="icon" variant="outline" aria-label="Transfer funds">
+              <ArrowLeftRight className="h-5 w-5" />
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Transfer Funds</DialogTitle>
+            </DialogHeader>
+            <TransferForm
+              accounts={accounts}
+              onSuccess={() => {
+                setIsTransferOpen(false);
+                fetchAccounts();
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={isModalOpen} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
             <Button size="icon" aria-label="Add account">
@@ -126,20 +148,20 @@ export default function AccountsPage() {
           animate={{ opacity: 1, y: 0 }}
           className="grid grid-cols-1 sm:grid-cols-2 gap-4"
         >
-          <Card className="p-8 bg-gradient-to-br from-primary/15 via-card to-card">
+          <Card className="p-5 sm:p-8 bg-gradient-to-br from-primary/15 via-card to-card">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center text-primary">
                 <Wallet className="w-4 h-4" />
               </div>
               <p className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">Total Balance</p>
             </div>
-            <h2 className="text-4xl font-black tracking-tight text-foreground">
+            <h2 className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight text-foreground tabular-nums">
               {formatNPR(totalBalance)}
             </h2>
           </Card>
 
           {typeBreakdown.length > 0 && (
-            <Card className="p-8">
+            <Card className="p-5 sm:p-8">
               <p className="text-xs font-semibold text-muted-foreground tracking-wider uppercase mb-4">
                 Balance by Account Type
               </p>

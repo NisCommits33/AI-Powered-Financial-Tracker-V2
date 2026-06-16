@@ -10,6 +10,8 @@ const titles: Record<string, { title: string; subtitle: string }> = {
   "/transactions": { title: "All Transactions", subtitle: "Finance" },
   "/accounts": { title: "Accounts", subtitle: "Finance" },
   "/budgets": { title: "Budgets", subtitle: "Finance" },
+  "/goals": { title: "Savings Goals", subtitle: "Finance" },
+  "/debts": { title: "Debts & Loans", subtitle: "Finance" },
   "/chat": { title: "Ask FinWise", subtitle: "Grok Chat" },
   "/settings": { title: "Settings", subtitle: "Preferences" },
   "/profile": { title: "Profile", subtitle: "Account" },
@@ -21,11 +23,11 @@ export default function TopBar() {
   const { title, subtitle } = entry?.[1] ?? { title: "FinWise", subtitle: "Finance" };
 
   return (
-    <header className="sticky top-0 z-30 -mx-4 md:mx-0 mb-2 md:mb-6">
-      <div className="flex items-center justify-between gap-4 px-4 md:px-0 py-4 md:py-0">
+    <header className="sticky top-0 z-30 -mx-4 md:mx-0 mb-2 md:mb-6 bg-background/95 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none border-b border-border/50 md:border-0">
+      <div className="flex items-center justify-between gap-4 px-4 md:px-0 py-3 md:py-0">
         <div>
           <p className="text-xs font-bold text-muted-foreground tracking-wider uppercase">{subtitle}</p>
-          <h1 className="text-2xl md:text-4xl font-black tracking-tight text-foreground">{title}</h1>
+          <h1 className="font-serif text-2xl md:text-4xl font-semibold tracking-tight text-foreground">{title}</h1>
         </div>
 
         <div className="flex items-center gap-3">

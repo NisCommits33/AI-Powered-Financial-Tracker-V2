@@ -221,12 +221,12 @@ export function TransactionList({ transactions, loading, onRefresh, accounts, in
             </SelectContent>
           </Select>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full min-w-0">
           <Input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="w-full sm:w-40"
+            className="flex-1 min-w-0"
             aria-label="From date"
           />
           <span className="text-muted-foreground text-xs shrink-0">to</span>
@@ -234,7 +234,7 @@ export function TransactionList({ transactions, loading, onRefresh, accounts, in
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="w-full sm:w-40"
+            className="flex-1 min-w-0"
             aria-label="To date"
           />
         </div>
@@ -283,8 +283,8 @@ export function TransactionList({ transactions, loading, onRefresh, accounts, in
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <p className={`font-bold text-sm ${isIncome ? "text-primary" : "text-foreground"}`}>
+                <div className="flex items-center gap-2 shrink-0 max-w-[40%]">
+                  <p className={`font-bold text-sm truncate ${isIncome ? "text-primary" : "text-foreground"}`}>
                     {isIncome ? "+" : "-"}
                     {formatNPR(Math.abs(tx.amount))}
                   </p>
@@ -292,7 +292,7 @@ export function TransactionList({ transactions, loading, onRefresh, accounts, in
                     variant="ghost"
                     size="icon"
                     onClick={() => handleDelete(tx.id)}
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>

@@ -90,21 +90,21 @@ export default function ProfilePage() {
             <Wallet className="w-4 h-4" />
           </div>
           <p className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">Net Worth</p>
-          <p className="text-2xl font-black tracking-tight">{formatNPR(netWorth)}</p>
+          <p className="font-serif text-2xl font-semibold tracking-tight tabular-nums">{formatNPR(netWorth)}</p>
         </Card>
         <Card className="p-5 flex flex-col gap-2">
           <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center text-accent-foreground">
             <Receipt className="w-4 h-4" />
           </div>
           <p className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">Transactions</p>
-          <p className="text-2xl font-black tracking-tight">{transactions.length}</p>
+          <p className="font-serif text-2xl font-semibold tracking-tight tabular-nums">{transactions.length}</p>
         </Card>
         <Card className="p-5 flex flex-col gap-2">
           <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center text-accent-foreground">
             <PiggyBank className="w-4 h-4" />
           </div>
           <p className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">Active Budgets</p>
-          <p className="text-2xl font-black tracking-tight">{budgets.length}</p>
+          <p className="font-serif text-2xl font-semibold tracking-tight tabular-nums">{budgets.length}</p>
         </Card>
       </div>
 

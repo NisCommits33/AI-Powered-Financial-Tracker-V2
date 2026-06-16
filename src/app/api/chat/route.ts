@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { formatNPR, withComputedSpent, currentMonthStart } from "@/lib/utils";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, ALL_CATEGORIES } from "@/lib/categories";
-import { AVAILABLE_MODELS, DEFAULT_MODEL } from "@/lib/groqModels";
+import { AVAILABLE_MODELS, DEFAULT_MODEL, type AIProvider } from "@/lib/groqModels";
 
 const ACCOUNT_TYPES = ["checking", "savings", "cash", "ewallet"];
 
@@ -215,6 +215,108 @@ const tools = [
   {
     type: "function",
     function: {
+      name: "show_table",
+      description: "Display an inline table in the chat to answer questions that have multiple rows of data (e.g. budget breakdown, spending by category, a list of recent transactions). Use this alongside a short text answer instead of writing out a long list in prose.",
+      parameters: {
+        type: "object",
+        properties: {
+          table_type: {
+            type: "string",
+            enum: ["budget_breakdown", "category_breakdown", "recent_transactions"],
+            description: "budget_breakdown: each budget's spent vs limit. category_breakdown: this month's spending by category. recent_transactions: the most recent transactions.",
+          },
+          title: { type: "string", description: "Short title for the table." },
+        },
+        required: ["table_type"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "transfer_funds",
+      description: "Move money from one of the user's accounts to another (e.g. 'move 5000 from Cash to Savings'). Creates a paired expense/income transaction and updates both account balances.",
+      parameters: {
+        type: "object",
+        properties: {
+          from_account_name: { type: "string", description: "Name of the account to transfer money out of." },
+          to_account_name: { type: "string", description: "Name of the account to transfer money into." },
+          amount: { type: ["number", "string"], description: "Amount to transfer. Always positive." },
+          date: { type: "string", description: "ISO date YYYY-MM-DD. Defaults to today if not mentioned." },
+        },
+        required: ["from_account_name", "to_account_name", "amount"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_goal",
+      description: "Create a new savings goal for the user (e.g. 'Create a savings goal of 100000 for a trip by December').",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Short name for the goal, e.g. 'Trip to Pokhara' or 'Emergency Fund'." },
+          target_amount: { type: ["number", "string"], description: "The amount the user wants to save in total." },
+          target_date: { type: "string", description: "ISO date YYYY-MM-DD the user wants to reach this goal by, if mentioned." },
+          current_amount: { type: ["number", "string"], description: "Amount already saved toward this goal, if mentioned. Defaults to 0." },
+        },
+        required: ["name", "target_amount"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "contribute_to_goal",
+      description: "Add or withdraw funds from an existing savings goal (e.g. 'add 5000 to my Emergency Fund goal').",
+      parameters: {
+        type: "object",
+        properties: {
+          goal_name: { type: "string", description: "Name of the goal to update (matched against the user's existing goals)." },
+          amount: { type: ["number", "string"], description: "Amount to add to the goal's saved total. Use a negative number to withdraw." },
+        },
+        required: ["goal_name", "amount"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_debt",
+      description: "Record a new debt or loan: either money the user borrowed (they owe someone) or money the user lent to someone (owed to them).",
+      parameters: {
+        type: "object",
+        properties: {
+          person: { type: "string", description: "Name of the person, bank, or lender involved." },
+          direction: { type: "string", enum: ["owed_by_me", "owed_to_me"], description: "'owed_by_me' if the user borrowed money, 'owed_to_me' if the user lent money." },
+          principal_amount: { type: ["number", "string"], description: "The total amount of the loan." },
+          interest_rate: { type: ["number", "string"], description: "Annual interest rate percentage, if mentioned." },
+          due_date: { type: "string", description: "ISO date YYYY-MM-DD this should be repaid by, if mentioned." },
+          notes: { type: "string", description: "Any extra context, e.g. reason for the loan." },
+        },
+        required: ["person", "direction", "principal_amount"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "record_debt_payment",
+      description: "Record a payment made toward an existing debt or loan, reducing its remaining balance (e.g. 'I paid back 5000 to Ramesh').",
+      parameters: {
+        type: "object",
+        properties: {
+          person: { type: "string", description: "Name of the person/lender on the debt record (matched against existing debts)." },
+          amount: { type: ["number", "string"], description: "Amount paid toward the balance. Always positive." },
+        },
+        required: ["person", "amount"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "set_dashboard_charts",
       description: "Choose which charts are shown on the dashboard, and in what set. Replaces the current selection.",
       parameters: {
@@ -233,16 +335,49 @@ const tools = [
 ];
 
 export async function POST(request: Request) {
-  const { messages, model } = await request.json();
+  const { messages, model, preferences } = await request.json();
+  const nickname: string | undefined = preferences?.nickname?.trim() || undefined;
+  const categoryRules: { keyword: string; category: string }[] = Array.isArray(preferences?.categoryRules)
+    ? preferences.categoryRules.filter((r: any) => r?.keyword && r?.category)
+    : [];
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return Response.json({ error: "messages is required" }, { status: 400 });
   }
 
-  const selectedModel = AVAILABLE_MODELS.some((m) => m.id === model) ? model : DEFAULT_MODEL;
+  const selectedEntry = AVAILABLE_MODELS.find((m) => m.id === model);
+  const selectedModel = selectedEntry ? model : DEFAULT_MODEL;
+  const selectedProvider: AIProvider = selectedEntry?.provider ?? "groq";
 
-  const apiKeys = [process.env.GROK_API_KEY, process.env.GROK_API_KEY_2].filter((k): k is string => !!k);
-  if (apiKeys.length === 0) {
+  // Per-provider connection details. `keys` is read per-request so newly added
+  // env vars take effect without a rebuild. `defaultModel` is used when this
+  // provider is reached as a fallback (the user's chosen model id only makes
+  // sense for its own provider).
+  const PROVIDERS: Record<AIProvider, { url: string; keys: string[]; defaultModel: string }> = {
+    groq: {
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      keys: [process.env.GROK_API_KEY, process.env.GROK_API_KEY_2].filter((k): k is string => !!k),
+      defaultModel: DEFAULT_MODEL,
+    },
+    cerebras: {
+      url: "https://api.cerebras.ai/v1/chat/completions",
+      keys: [process.env.CEREBRAS_API_KEY].filter((k): k is string => !!k),
+      defaultModel: "gpt-oss-120b",
+    },
+    gemini: {
+      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      keys: [process.env.GEMINI_API_KEY].filter((k): k is string => !!k),
+      defaultModel: "gemini-2.5-flash",
+    },
+  };
+
+  // Try the user's chosen provider first, then the others as rate-limit fallbacks.
+  const providerOrder: AIProvider[] = [
+    selectedProvider,
+    ...(["groq", "cerebras", "gemini"] as AIProvider[]).filter((p) => p !== selectedProvider),
+  ];
+
+  if (providerOrder.every((p) => PROVIDERS[p].keys.length === 0)) {
     return Response.json({ error: "AI assistant is not configured" }, { status: 500 });
   }
 
@@ -256,7 +391,7 @@ export async function POST(request: Request) {
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
   const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0, 10);
 
-  const [{ data: accounts }, { data: transactions }, { data: monthTx }, { data: budgets }, { data: trendTx }] =
+  const [{ data: accounts }, { data: transactions }, { data: monthTx }, { data: budgets }, { data: trendTx }, { data: goals }, { data: debts }] =
     await Promise.all([
       supabase.from("accounts").select("*").eq("is_archived", false),
       // Recent transactions for the display list / edit + delete id lookups.
@@ -282,6 +417,8 @@ export async function POST(request: Request) {
         .select("*")
         .is("deleted_at", null)
         .gte("date", sixMonthsAgoStr),
+      supabase.from("goals").select("*").eq("is_completed", false),
+      supabase.from("debts").select("*").eq("is_settled", false),
     ]);
 
   const netWorth = (accounts || []).reduce((sum, a) => sum + (a.balance || 0), 0);
@@ -318,6 +455,32 @@ export async function POST(request: Request) {
   const avgMonthlySavings = avgMonthlyIncome - avgMonthlyExpenses;
   const cashFlowRunwayMonths =
     avgMonthlyExpenses > 0 ? (netWorth / avgMonthlyExpenses).toFixed(1) : "N/A";
+  const savingsRatePercent =
+    avgMonthlyIncome > 0 ? ((avgMonthlySavings / avgMonthlyIncome) * 100).toFixed(1) : "N/A";
+
+  // Weekend vs weekday spending, for personalized coaching tips
+  // ("You spend 40% more on weekends").
+  let weekendSpend = 0;
+  let weekdaySpend = 0;
+  let weekendDays = 0;
+  let weekdayDays = 0;
+  for (const t of trendTx || []) {
+    if (t.amount >= 0) continue;
+    const day = new Date(t.date).getDay();
+    if (day === 0 || day === 6) weekendSpend += Math.abs(t.amount);
+    else weekdaySpend += Math.abs(t.amount);
+  }
+  for (let d = new Date(sixMonthsAgoStr); d <= new Date(); d.setDate(d.getDate() + 1)) {
+    const day = d.getDay();
+    if (day === 0 || day === 6) weekendDays++;
+    else weekdayDays++;
+  }
+  const avgWeekendDailySpend = weekendDays > 0 ? weekendSpend / weekendDays : 0;
+  const avgWeekdayDailySpend = weekdayDays > 0 ? weekdaySpend / weekdayDays : 0;
+  const weekendVsWeekdaySummary =
+    avgWeekdayDailySpend > 0 || avgWeekendDailySpend > 0
+      ? `Average daily spending (last 6 months): Weekday ${formatNPR(avgWeekdayDailySpend)}, Weekend ${formatNPR(avgWeekendDailySpend)}`
+      : "No transaction history yet.";
 
   // Category totals per month, for category deep-dive / "why did X spike" questions.
   const categoryByMonth = new Map<string, Map<string, number>>();
@@ -339,6 +502,35 @@ export async function POST(request: Request) {
         return `- ${month}: ${line}`;
       })
       .join("\n") || "No transaction history yet.";
+
+  // Simple spending persona derived from the data, for personalization.
+  const personaTraits: string[] = [];
+  if (avgWeekendDailySpend > avgWeekdayDailySpend * 1.3 && avgWeekendDailySpend > 0) {
+    const pct = Math.round((avgWeekendDailySpend / avgWeekdayDailySpend - 1) * 100);
+    personaTraits.push(`"Weekend spender" — spends about ${pct}% more per day on weekends than weekdays`);
+  } else if (avgWeekdayDailySpend > avgWeekendDailySpend * 1.3 && avgWeekdayDailySpend > 0) {
+    const pct = Math.round((avgWeekdayDailySpend / avgWeekendDailySpend - 1) * 100);
+    personaTraits.push(`"Weekday spender" — spends about ${pct}% more per day on weekdays than weekends`);
+  }
+  const totalExpensesTrend = [...categoryByMonth.values()].reduce(
+    (sum, cats) => sum + [...cats.values()].reduce((s, v) => s + v, 0),
+    0
+  );
+  const categoryGrandTotals = new Map<string, number>();
+  for (const cats of categoryByMonth.values()) {
+    for (const [cat, amt] of cats) {
+      categoryGrandTotals.set(cat, (categoryGrandTotals.get(cat) || 0) + amt);
+    }
+  }
+  const topCategoryEntry = [...categoryGrandTotals.entries()].sort(([, a], [, b]) => b - a)[0];
+  if (topCategoryEntry && totalExpensesTrend > 0) {
+    const [topCategory, topAmount] = topCategoryEntry;
+    const pct = Math.round((topAmount / totalExpensesTrend) * 100);
+    if (pct >= 30) {
+      personaTraits.push(`"${topCategory} spender" — ${topCategory} makes up ~${pct}% of total spending over the last 6 months`);
+    }
+  }
+  const personaSummary = personaTraits.length ? personaTraits.join("; ") : "No strong spending pattern detected yet.";
 
   // Recurring-tagged transactions: most recent occurrence of each, for the
   // subscription/recurring-charge audit.
@@ -377,6 +569,14 @@ export async function POST(request: Request) {
     .map((b) => `- ${b.category}: ${formatNPR(b.spent)} of ${formatNPR(b.monthly_limit)} (${b.month})`)
     .join("\n") || "No budgets set.";
 
+  const goalsSummary = (goals || [])
+    .map((g) => `- ${g.name}: ${formatNPR(g.current_amount)} of ${formatNPR(g.target_amount)}${g.target_date ? ` (by ${g.target_date})` : ""}`)
+    .join("\n") || "No active savings goals.";
+
+  const debtsSummary = (debts || [])
+    .map((d) => `- ${d.person}: ${d.direction === "owed_by_me" ? "you owe" : "owed to you"} ${formatNPR(d.remaining_amount)} of ${formatNPR(d.principal_amount)}${d.interest_rate ? ` @ ${d.interest_rate}%` : ""}${d.due_date ? ` (due ${d.due_date})` : ""}`)
+    .join("\n") || "No active debts or loans.";
+
   const recentTxSummary = (transactions || [])
     .slice(0, 30)
     .map(
@@ -385,12 +585,58 @@ export async function POST(request: Request) {
     )
     .join("\n") || "No transactions yet.";
 
+  // Pre-built rows for the show_table tool.
+  const budgetTableRows = withComputedSpent(budgets || [], thisMonthTx).map((b) => [
+    b.category,
+    formatNPR(b.spent),
+    formatNPR(b.monthly_limit),
+    `${b.monthly_limit ? Math.round((b.spent / b.monthly_limit) * 100) : 0}%`,
+  ]);
+  const categoryTableRows = categoryBreakdown.map((c) => [c.name, formatNPR(c.value)]);
+  const recentTxTableRows = (transactions || [])
+    .slice(0, 10)
+    .map((t) => [t.date.slice(0, 10), t.category, t.description || "", formatNPR(t.amount)]);
+
   const todayStr = new Date().toISOString().split("T")[0];
+
+  const categoryRulesSummary = categoryRules.length
+    ? categoryRules.map((r) => `- If the description contains "${r.keyword}", use category "${r.category}".`).join("\n")
+    : "";
+
+  // Cheap intent pre-check on the latest user message — only pull in the
+  // heavier analytical snapshot sections when they're actually relevant,
+  // since most messages (e.g. "add Rs.500 lunch") never need them.
+  const lastUserMessage = (
+    [...messages].reverse().find((m: { role: string; content: string }) => m.role === "user")?.content || ""
+  ).toLowerCase();
+
+  const wantsForecast =
+    /trend|forecast|project|runway|afford|survive|how long|save up|by next|month.over.month|compare.*month|last 6 month|six month/.test(
+      lastUserMessage
+    );
+  const wantsCategoryDetail = /categor|spike|breakdown|spending on|why (did|is|was|are)/.test(lastUserMessage);
+  const wantsRecurring = /recurring|subscription|bills?/.test(lastUserMessage);
+  const wantsPatterns = /weekend|weekday|persona|spender|habit|pattern/.test(lastUserMessage);
+
+  const snapshotExtras = [
+    wantsForecast
+      ? `\n### Monthly Income vs Expenses (Last 6 Months)\n${monthlyTrendSummary}\n\n### Forecast Data\nAverage Monthly Income: ${formatNPR(avgMonthlyIncome)}\nAverage Monthly Expenses: ${formatNPR(avgMonthlyExpenses)}\nAverage Monthly Net Savings: ${formatNPR(avgMonthlySavings)}\nSavings Rate: ${savingsRatePercent}% (Average Monthly Net Savings / Average Monthly Income)\nEstimated Cash Flow Runway: ${cashFlowRunwayMonths} months (Net Worth / Average Monthly Expenses)`
+      : "",
+    wantsCategoryDetail
+      ? `\n### Category Spending by Month (Last 6 Months)\n${categoryByMonthSummary}`
+      : "",
+    wantsRecurring ? `\n### Recurring Transactions\n${recurringSummary}` : "",
+    wantsPatterns
+      ? `\n### Spending Patterns\n${weekendVsWeekdaySummary}\nDetected persona traits: ${personaSummary}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const systemPrompt = `You are FinWise, a friendly, concise, and reliable personal finance assistant embedded inside the user's finance tracker application.
 
 Today's date is ${todayStr}.
-
+${nickname ? `\nThe user prefers to be called "${nickname}". Address them by this name occasionally where it feels natural.\n` : ""}
 The financial data below is the ONLY source of truth. All amounts are in Nepali Rupees (NPR).
 
 GENERAL RULES
@@ -400,6 +646,7 @@ GENERAL RULES
 - Never invent transactions, balances, budgets, categories, accounts, or statistics.
 - If the provided data is insufficient, explicitly say you do not have enough information instead of guessing.
 - Perform calculations only from the supplied data.
+- You may use Markdown (bold, bullet/numbered lists, headings, tables) to structure longer answers — keep it light and only when it improves clarity.
 
 TOOL USAGE
 
@@ -416,51 +663,29 @@ Available actions include:
 - Show an inline chart (category breakdown or 6-month income/expense trend)
 
 IMPORTANT:
-Call a tool ONLY when the user is explicitly requesting an action to be performed NOW.
+Call a tool ONLY when the user is explicitly requesting an action to be performed NOW (e.g. "add a Rs.500
+lunch expense", "set my food budget to 12000", "switch to dark mode", "transfer 2000 from Cash to Savings",
+"create a savings goal of 100000 for a trip"). Pure questions, analysis, advice, or "what-if" requests
+("how can I save money?", "why are my expenses high?", "if I cut dining out by 30%, how much would I save?")
+should get a text-only answer — do not call a tool for these unless the user also explicitly asks for a
+chart or table. If intent is ambiguous, assume informational and don't call a tool.
 
-Examples that SHOULD call tools:
-- "Add a Rs.500 lunch expense."
-- "Log salary income of Rs.50000."
-- "Delete my latest grocery transaction."
-- "Change to dark mode."
-- "Set my food budget to Rs.12000."
-- "Create a cash account with Rs.3000."
-- "Add my rent of Rs.15000 every month on the 1st." (call create_transaction with recurring: true)
-- "Show me a chart of my spending by category." (call show_chart)
+For informational and "what-if" questions, answer using the data sections below with simple arithmetic —
+don't call a tool just to answer a question. Key sections to use:
+- Category Spending by Month — for "why did X spike" / category deep-dives.
+- Recent Transactions — for anomaly explanations (entries marked "[flagged as anomaly]") and recent-activity questions.
+- Average Monthly Income/Expenses/Savings & Estimated Cash Flow Runway — for forecasts, projections, and "how long would my money last" questions.
+- Recurring Transactions — for subscription/recurring-charge audits.
+- Spending Patterns (weekday vs weekend, persona traits) — for personalized habit/persona questions; don't invent a persona if none was detected.
+- Savings Rate — for "what's my savings rate / is it good" (rough benchmark: <10% low, 10-20% reasonable, >20% strong — frame as general guidance).
 
-Examples that should NOT call tools:
-- "How can I save money?"
-- "Why are my expenses high?"
-- "Should I set a budget?"
-- "Can you recommend a budget?"
-- "What category do I spend the most on?"
-- "Analyze my finances."
-- "Am I spending more than last month?"
-- "If I cut my dining out by 30%, how much would I save per year?"
-
-For informational questions, provide a text response only. Trend, comparison, and "what-if" questions
-should be answered using the Monthly Income vs Expenses history and Recent Transactions provided below —
-do them yourself with simple arithmetic, do not call a tool for these unless the user also asks for a chart.
-
-Additional informational question types and how to answer them from the supplied data:
-- Category deep-dives ("Why did my Food spending spike in May?") — use the Category Spending by Month
-  breakdown below to compare the category's totals across months and identify the spike.
-- Anomaly explanations ("What's that NPR 5,000 charge on June 3rd?") — look in Recent Transactions for a
-  matching date/amount; transactions marked "[flagged as anomaly]" were detected as unusual. Explain using
-  the transaction's category, description, and amount.
-- Forecast / projection ("At this rate, will I hit my savings goal by December?") — use Average Monthly
-  Income/Expenses/Savings below to extrapolate. If the user hasn't stated a savings goal amount or target
-  date, ask for it before projecting.
-- Subscription/recurring charge audit ("List all my recurring payments and their total") — use the
-  Recurring Transactions list and total below.
-- Cash flow runway ("How many months can I survive on my current balance if income stops?") — use the
-  Estimated Cash Flow Runway figure below, or recompute it as Net Worth / Average Monthly Expenses.
-
-If the user's intent is ambiguous, assume they want information only and DO NOT call any tools.
+General financial-literacy questions (e.g. "what does APR mean?", debt payoff strategies in general) can be
+answered from your own knowledge, kept concise; note if the app doesn't track the relevant data (e.g. no
+loan/credit accounts yet).
 
 When a user clearly requests an action:
 - Call the appropriate tool immediately.
-- Do NOT ask for confirmation.
+- do not ask for confirmation.
 - The application will present its own confirmation UI.
 
 You may call multiple tools only when the user explicitly requests multiple separate actions.
@@ -478,6 +703,7 @@ For create_transaction:
 - If omitted, choose the most appropriate existing account.
 - Every transaction must affect an account balance.
 - Set recurring: true if the user describes the transaction as repeating (rent, subscriptions, salary, "every month", etc.). The first occurrence is logged now, dated as the user specifies.
+${categoryRulesSummary ? `- The user has set these custom categorization rules. Apply them before falling back to your own judgment:\n${categoryRulesSummary}` : ""}
 
 ## Financial Snapshot
 
@@ -494,58 +720,73 @@ ${accountsSummary}
 ### Budgets
 ${budgetsSummary}
 
+### Savings Goals
+${goalsSummary}
+
+### Debts & Loans
+${debtsSummary}
+
 ### Recent Transactions (Most Recent First)
 ${recentTxSummary}
 
-### Monthly Income vs Expenses (Last 6 Months)
-${monthlyTrendSummary}
+Savings Rate: ${savingsRatePercent}%
+${snapshotExtras}`;
 
-### Category Spending by Month (Last 6 Months)
-${categoryByMonthSummary}
-
-### Recurring Transactions
-${recurringSummary}
-
-### Forecast Data
-Average Monthly Income: ${formatNPR(avgMonthlyIncome)}
-Average Monthly Expenses: ${formatNPR(avgMonthlyExpenses)}
-Average Monthly Net Savings: ${formatNPR(avgMonthlySavings)}
-Estimated Cash Flow Runway: ${cashFlowRunwayMonths} months (Net Worth / Average Monthly Expenses)`;
+  // Cap conversation history sent to the model — older turns rarely matter for
+  // the current request and the financial snapshot above already gives the
+  // model fresh context each time, so unbounded history is pure token cost.
+  const MAX_HISTORY_MESSAGES = 12;
+  const recentMessages = messages.slice(-MAX_HISTORY_MESSAGES);
 
   const groqMessages = [
     { role: "system", content: systemPrompt },
-    ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
+    ...recentMessages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
   ];
 
-  const groqRequestBody = JSON.stringify({
-    model: selectedModel,
+  const baseRequest = {
     messages: groqMessages,
     temperature: 0.4,
     tools,
     tool_choice: "auto",
     stream: true,
-  });
+  };
 
-  // Try each configured key in turn — if one is rate-limited (429), fall back to the next.
+  // Route to the user's chosen provider first; on rate-limit (429), fall through
+  // to the next configured provider (each using its own default model). All three
+  // providers expose an OpenAI-compatible chat-completions API, so the request
+  // and streaming response shapes are identical.
   let response: Response | null = null;
-  for (let i = 0; i < apiKeys.length; i++) {
-    const attempt = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKeys[i]}`,
-      },
-      body: groqRequestBody,
-    });
-    if (attempt.ok || attempt.status !== 429 || i === apiKeys.length - 1) {
+  let usedModel = selectedModel;
+  for (const providerId of providerOrder) {
+    const provider = PROVIDERS[providerId];
+    if (provider.keys.length === 0) continue;
+
+    // Use the chosen model id for its own provider; the provider's default otherwise.
+    const modelForProvider = providerId === selectedProvider ? selectedModel : provider.defaultModel;
+    const body = JSON.stringify({ ...baseRequest, model: modelForProvider });
+
+    // Try each key for this provider; advance to the next key only on 429.
+    for (const key of provider.keys) {
+      const attempt = await fetch(provider.url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body,
+      });
       response = attempt;
-      break;
+      usedModel = modelForProvider;
+      if (attempt.ok || attempt.status !== 429) break;
     }
+
+    // Move on to the next provider only when this one is rate-limited.
+    if (response && (response.ok || response.status !== 429)) break;
   }
 
   if (!response || !response.ok || !response.body) {
     const errText = await response?.text();
-    console.error("Groq API error:", response?.status, errText);
+    console.error("Chat API error:", response?.status, errText);
     const message =
       response?.status === 429
         ? "The AI assistant has hit its daily usage limit. Please try again later."
@@ -557,9 +798,11 @@ Estimated Cash Flow Runway: ${cashFlowRunwayMonths} months (Net Worth / Average 
   const groqBody = response.body;
 
   // Groq returns its current rate-limit/quota state on every response via
-  // these headers; surface them so the UI can show remaining usage.
+  // these headers; surface them so the UI can show remaining usage. `usedModel`
+  // reflects the model that actually answered (may differ from the chosen one
+  // if we fell through to a fallback provider).
   const usage = {
-    model: selectedModel,
+    model: usedModel,
     limitRequests: response.headers.get("x-ratelimit-limit-requests"),
     remainingRequests: response.headers.get("x-ratelimit-remaining-requests"),
     limitTokens: response.headers.get("x-ratelimit-limit-tokens"),
@@ -624,7 +867,7 @@ Estimated Cash Flow Runway: ${cashFlowRunwayMonths} months (Net Worth / Average 
       }
 
       // Build confirmation-card actions from the fully-accumulated tool calls.
-      let chartSent = false;
+      let visualSent = false;
       const actions: { id: string; type: string; args: Record<string, unknown> }[] = [];
       for (const call of toolCallsAcc) {
         if (!call || !call.name) continue;
@@ -644,13 +887,50 @@ Estimated Cash Flow Runway: ${cashFlowRunwayMonths} months (Net Worth / Average 
               type: "chart",
               chart: { chart_type: chartType, title: args.title || "Spending by Category", data: categoryBreakdown },
             });
-            chartSent = true;
+            visualSent = true;
           } else if (chartType === "spending_trend") {
             send({
               type: "chart",
               chart: { chart_type: chartType, title: args.title || "Income vs Expenses (Last 6 Months)", data: monthlyTrend },
             });
-            chartSent = true;
+            visualSent = true;
+          }
+          continue;
+        }
+
+        // Tables are purely informational (no confirmation needed) — same pattern as show_chart.
+        if (call.name === "show_table") {
+          const tableType = args.table_type;
+          if (tableType === "budget_breakdown") {
+            send({
+              type: "table",
+              table: {
+                title: args.title || "Budget Breakdown",
+                columns: ["Category", "Spent", "Limit", "% Used"],
+                rows: budgetTableRows,
+              },
+            });
+            visualSent = true;
+          } else if (tableType === "category_breakdown") {
+            send({
+              type: "table",
+              table: {
+                title: args.title || "Spending by Category",
+                columns: ["Category", "Amount"],
+                rows: categoryTableRows,
+              },
+            });
+            visualSent = true;
+          } else if (tableType === "recent_transactions") {
+            send({
+              type: "table",
+              table: {
+                title: args.title || "Recent Transactions",
+                columns: ["Date", "Category", "Description", "Amount"],
+                rows: recentTxTableRows,
+              },
+            });
+            visualSent = true;
           }
           continue;
         }
@@ -684,6 +964,47 @@ Estimated Cash Flow Runway: ${cashFlowRunwayMonths} months (Net Worth / Average 
           }
         }
 
+        // Resolve goal_name -> goal_id for contribute_to_goal.
+        if (call.name === "contribute_to_goal") {
+          const matched = (goals || []).find(
+            (g) => g.name.toLowerCase() === String(args.goal_name || "").toLowerCase()
+          );
+          if (matched) {
+            args.goal_id = matched.id;
+            args.goal_name = matched.name;
+          }
+        }
+
+        // Resolve person -> debt_id for record_debt_payment.
+        if (call.name === "record_debt_payment") {
+          const matched = (debts || []).find(
+            (d) => d.person.toLowerCase() === String(args.person || "").toLowerCase()
+          );
+          if (matched) {
+            args.debt_id = matched.id;
+            args.person = matched.person;
+          }
+        }
+
+        // Resolve from/to account names for transfer_funds.
+        if (call.name === "transfer_funds") {
+          const fromMatch = (accounts || []).find(
+            (a) => a.name.toLowerCase() === String(args.from_account_name || "").toLowerCase()
+          );
+          const toMatch = (accounts || []).find(
+            (a) => a.name.toLowerCase() === String(args.to_account_name || "").toLowerCase()
+          );
+          if (fromMatch) {
+            args.from_account_id = fromMatch.id;
+            args.from_account_name = fromMatch.name;
+          }
+          if (toMatch) {
+            args.to_account_id = toMatch.id;
+            args.to_account_name = toMatch.name;
+          }
+          if (!args.date) args.date = todayStr;
+        }
+
         // A logged transaction must be tied to an account, otherwise it only moves the
         // income/expense totals and leaves account balances / net worth untouched.
         // When the model didn't name a (matching) account, fall back to the user's
@@ -700,7 +1021,7 @@ Estimated Cash Flow Runway: ${cashFlowRunwayMonths} months (Net Worth / Average 
       }
 
       if (!replyText) {
-        const fallback = actions.length > 0 ? "Here's what I'd like to do:" : chartSent ? "" : "Sorry, I couldn't generate a response.";
+        const fallback = actions.length > 0 ? "Here's what I'd like to do:" : visualSent ? "" : "Sorry, I couldn't generate a response.";
         if (fallback) send({ type: "content", text: fallback });
       }
       send({ type: "actions", actions });

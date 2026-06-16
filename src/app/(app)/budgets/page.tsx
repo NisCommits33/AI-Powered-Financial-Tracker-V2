@@ -141,14 +141,14 @@ export default function BudgetsPage() {
 
       {/* Overview card */}
       {budgets.length > 0 && (
-        <Card className="p-8 bg-gradient-to-br from-primary/15 via-card to-card">
+        <Card className="p-5 sm:p-8 bg-gradient-to-br from-primary/15 via-card to-card">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center text-primary">
               <Target className="w-4 h-4" />
             </div>
             <p className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">Total Spent This Month</p>
           </div>
-          <h2 className="text-4xl font-black tracking-tight text-foreground">
+          <h2 className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight text-foreground tabular-nums">
             {formatNPR(totalSpent)}
             <span className="text-base font-semibold text-muted-foreground"> / {formatNPR(totalLimit)}</span>
           </h2>

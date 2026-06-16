@@ -20,7 +20,7 @@ export function AccountTransactionsModal({ account, onClose }: AccountTransactio
 
   return (
     <Dialog open={!!account} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{account?.name} Transactions</DialogTitle>
         </DialogHeader>

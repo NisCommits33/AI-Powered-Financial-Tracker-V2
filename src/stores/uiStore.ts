@@ -7,6 +7,8 @@ interface UIStore {
   closeNLModal: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  sidebarCollapsed: boolean;
+  toggleSidebar: () => void;
 }
 
 export const useUIStore = create<UIStore>()(
@@ -17,6 +19,8 @@ export const useUIStore = create<UIStore>()(
       closeNLModal: () => set({ isNLModalOpen: false }),
       activeTab: "dashboard",
       setActiveTab: (tab) => set({ activeTab: tab }),
+      sidebarCollapsed: false,
+      toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
     }),
     {
       name: "finwise-ui",

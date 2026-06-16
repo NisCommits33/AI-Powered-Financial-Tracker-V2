@@ -35,7 +35,7 @@ Rules:
 
 Respond with ONLY a JSON object with keys: amount, description, category, date, account. No extra text.`;
 
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  let response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -52,9 +52,29 @@ Respond with ONLY a JSON object with keys: amount, description, category, date, 
     }),
   });
 
+  // If Groq is rate-limited, fall back to Gemini via its OpenAI-compatible endpoint.
+  if (!response.ok && response.status === 429 && process.env.GEMINI_API_KEY) {
+    response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.GEMINI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: text },
+        ],
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+      }),
+    });
+  }
+
   if (!response.ok) {
     const errText = await response.text();
-    console.error("Groq API error:", response.status, errText);
+    console.error("AI API error:", response.status, errText);
     return Response.json({ error: "Couldn't parse that right now. Try entering it manually." }, { status: 502 });
   }
 
