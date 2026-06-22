@@ -110,6 +110,7 @@ export function AccountList({
                       onEdit(account);
                     }}
                     aria-label="Edit account"
+                    title="Edit account"
                   >
                     <Edit2 className="h-3.5 w-3.5" strokeWidth={1.5} />
                   </Button>
@@ -122,6 +123,7 @@ export function AccountList({
                       onDelete(account.id);
                     }}
                     aria-label="Delete account"
+                    title="Delete account"
                   >
                     <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
                   </Button>

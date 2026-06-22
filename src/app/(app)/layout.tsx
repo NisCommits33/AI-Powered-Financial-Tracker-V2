@@ -1,15 +1,22 @@
+import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/layout/BottomNav";
 import SidebarNav from "@/components/layout/SidebarNav";
 import FloatingAddButton from "@/components/layout/FloatingAddButton";
 import NLInputModal from "@/components/transactions/NLInputModal";
 import TopBar from "@/components/layout/TopBar";
 import ContentArea from "@/components/layout/ContentArea";
+import { createClient } from "@/lib/supabase/server";
 
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
   return (
     <div className="relative min-h-screen w-full bg-background flex flex-col md:flex-row overflow-x-hidden pb-32 md:pb-6">
       {/* Sidebar Navigation - Desktop/Tablet */}

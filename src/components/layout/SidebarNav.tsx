@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/uiStore";
+import LogoutButton from "@/components/auth/LogoutButton";
 
 const navItems = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -124,6 +125,7 @@ export default function SidebarNav() {
             </Link>
           );
         })}
+        <LogoutButton collapsed={sidebarCollapsed} />
       </nav>
 
       {/* Quick Transaction Action + Collapse Toggle */}

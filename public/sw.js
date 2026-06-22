@@ -1,6 +1,6 @@
-const CACHE_NAME = "finwise-v1";
+const CACHE_NAME = "finwise-v2";
 
-const PRECACHE_URLS = ["/dashboard", "/icon.svg"];
+const PRECACHE_URLS = ["/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -27,17 +27,10 @@ self.addEventListener("fetch", (event) => {
   if (url.protocol === "chrome-extension:") return;
   if (url.pathname.startsWith("/api/")) return;
 
-  // Network-first for navigations (pages)
+  // Never cache page HTML. Authenticated financial pages must always come
+  // from the network so stale or user-specific content is not stored offline.
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          return response;
-        })
-        .catch(() => caches.match(request).then((r) => r || caches.match("/dashboard")))
-    );
+    event.respondWith(fetch(request));
     return;
   }
 

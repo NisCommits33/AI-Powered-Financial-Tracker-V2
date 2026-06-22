@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
+import LogoutButton from "@/components/auth/LogoutButton";
 
 const mainNav = [
   { path: "/dashboard", icon: LayoutDashboard, label: "Home" },
@@ -70,6 +71,8 @@ export function BottomNav() {
                 <button
                   onClick={() => setMoreOpen(false)}
                   className="w-6 h-6 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  aria-label="Close more menu"
+                  title="Close"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -92,6 +95,7 @@ export function BottomNav() {
                     </button>
                   );
                 })}
+                <LogoutButton mobileMenu onLoggedOut={() => setMoreOpen(false)} />
               </div>
             </motion.div>
           </>

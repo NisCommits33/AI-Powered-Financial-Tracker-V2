@@ -12,9 +12,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - /login (login page - auth not needed)
-     * - / (root page - handles its own redirect logic)
+     * - static image assets
      */
-    "/((?!_next/static|_next/image|favicon.ico|login|$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

@@ -39,6 +39,7 @@ export default function TopBar() {
             href="/settings"
             className="hidden sm:flex w-10 h-10 rounded-full glass-card items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Settings"
+            title="Settings"
           >
             <Settings className="w-4 h-4" />
           </Link>
@@ -46,6 +47,7 @@ export default function TopBar() {
             href="/profile"
             className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground text-sm shadow-sm shadow-primary/30 shrink-0"
             aria-label="Profile"
+            title="Profile"
           >
             U
           </Link>

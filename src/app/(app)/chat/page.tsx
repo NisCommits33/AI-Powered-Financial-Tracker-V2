@@ -56,7 +56,7 @@ const todayKey = () => new Date().toISOString().slice(0, 10);
 // crypto.randomUUID requires HTTPS; fall back to Math.random-based UUID on plain HTTP (mobile dev).
 function randomId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return randomId();
+    return crypto.randomUUID();
   }
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -525,6 +525,7 @@ export default function ChatPage() {
         </Button>
       )}
       <Button
+        type="button"
         size="icon"
         onClick={() => handleSend()}
         disabled={loading || !input.trim()}
@@ -587,6 +588,8 @@ export default function ChatPage() {
                 role="button"
                 onClick={(e) => deleteConversation(c.id, e)}
                 className="opacity-100 md:opacity-0 md:group-hover:opacity-100 shrink-0 text-muted-foreground hover:text-destructive transition-opacity"
+                aria-label="Delete conversation"
+                title="Delete conversation"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </span>
@@ -678,6 +681,7 @@ export default function ChatPage() {
                   <button
                     onClick={() => dismissInsight(insight.id)}
                     aria-label="Dismiss insight"
+                    title="Dismiss insight"
                     className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
                   >
                     <X className="w-3.5 h-3.5" />

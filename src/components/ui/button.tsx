@@ -36,8 +36,9 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, style, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, style, title, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
+    const accessibleLabel = props["aria-label"];
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
@@ -46,6 +47,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         // (e.g. rounded-full on icon buttons) - the Settings "Button Border"
         // control would otherwise silently have no effect on those buttons.
         style={variant === "link" ? style : { borderRadius: "var(--btn-radius)", ...style }}
+        title={title ?? (typeof accessibleLabel === "string" ? accessibleLabel : undefined)}
         ref={ref}
         {...props}
       />

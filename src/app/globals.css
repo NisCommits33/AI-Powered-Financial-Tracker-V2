@@ -230,6 +230,22 @@
   }
 }
 
+/* Interaction affordances live outside Tailwind layers so preflight and
+   component styles cannot silently reset them. */
+a[href],
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+select:not(:disabled),
+summary {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 /* Flat card / surface primitives */
 .glass-card {
   background: var(--card);

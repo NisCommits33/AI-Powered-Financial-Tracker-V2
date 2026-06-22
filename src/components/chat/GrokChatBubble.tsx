@@ -6,7 +6,7 @@ import { Sparkles } from "lucide-react";
 
 export default function GrokChatBubble() {
   return (
-    <Link href="/chat" aria-label="Open Grok chat">
+    <Link href="/chat" aria-label="Open Grok chat" title="Open Grok chat">
       <motion.div
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
