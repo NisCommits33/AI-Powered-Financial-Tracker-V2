@@ -1,0 +1,16 @@
+
+> finwise@0.1.0 dev
+> node --max-http-header-size=65536 node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3000
+
+▲ Next.js 16.2.7 (Turbopack)
+- Local:         http://127.0.0.1:3000
+- Network:       http://127.0.0.1:3000
+- Environments: .env.local
+✓ Ready in 1591ms
+Creating turbopack project {
+  dir: 'C:\\Users\\nees2\\OneDrive\\Desktop\\project\\AI-powered Financial Tracker V2\\finwise',
+  testMode: true
+}
+
+ GET /login 200 in 1737ms (next.js: 408ms, proxy.ts: 574ms, application-code: 756ms)
+[?25h

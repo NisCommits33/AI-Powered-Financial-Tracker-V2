@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowUp, Check, Copy, Lightbulb, Loader2, Mic, MessageSquare, PanelLeft, PanelLeftOpen, Pin, PinOff, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowUp, Check, Copy, Lightbulb, Loader2, Mic, MessageSquare, PanelLeft, PanelLeftOpen, Pin, PinOff, Plus, Sparkles, Trash2, WalletCards, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActionCard, type ActionCardHandle, type ChatAction, type Status } from "@/components/chat/ActionCard";
 import { ChatChart, type ChatChartPayload } from "@/components/chat/ChatChart";
@@ -19,7 +19,7 @@ import {
   savePinnedQuestions,
   type ChatPreferences,
 } from "@/lib/chatPreferences";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 
 interface Usage {
   model: string;
@@ -50,6 +50,37 @@ interface Insight {
   message: string;
 }
 
+interface SpeechRecognitionResultLike {
+  0: {
+    transcript: string;
+  };
+}
+
+interface SpeechRecognitionEventLike {
+  results: {
+    length: number;
+    [index: number]: SpeechRecognitionResultLike;
+  };
+}
+
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+interface SpeechWindow extends Window {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+}
+
 const DISMISSED_INSIGHTS_KEY = "chat_dismissed_insights";
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
@@ -76,36 +107,70 @@ const welcomeMessage: ChatMessage = {
   content: "Hi! I'm your FinWise assistant. Ask me anything about your spending, budgets, or net worth.",
 };
 
+const modelLabelById = Object.fromEntries(AVAILABLE_MODELS.map((m) => [m.id, m.label]));
+
+function formatConversationDate(value: string) {
+  const date = new Date(value);
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
 export default function ChatPage() {
   const supabase = createClientComponentClient();
   const [suggestions, setSuggestions] = useState<string[]>(defaultSuggestions);
   const [insights, setInsights] = useState<Insight[]>([]);
-  const [preferences, setPreferences] = useState<ChatPreferences>(defaultChatPreferences);
-  const [pinnedQuestions, setPinnedQuestions] = useState<string[]>([]);
+  const [preferences, setPreferences] = useState<ChatPreferences>(() =>
+    typeof window === "undefined" ? defaultChatPreferences : loadChatPreferences()
+  );
+  const [pinnedQuestions, setPinnedQuestions] = useState<string[]>(() =>
+    typeof window === "undefined" ? [] : loadPinnedQuestions()
+  );
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
-  const [speechSupported, setSpeechSupported] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const [speechSupported] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const speechWindow = window as SpeechWindow;
+    return Boolean(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition);
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Load locally-stored personalization (nickname, category rules, pinned questions).
-  useEffect(() => {
-    setPreferences(loadChatPreferences());
-    setPinnedQuestions(loadPinnedQuestions());
-  }, []);
+  const [messages, setMessages] = useState<ChatMessage[]>([welcomeMessage]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [streamingId, setStreamingId] = useState<string | null>(null);
+  const [model, setModel] = useState<string>(() => {
+    if (typeof window === "undefined") return DEFAULT_MODEL;
+    const saved = localStorage.getItem("chat_model");
+    return saved && AVAILABLE_MODELS.some((m) => m.id === saved) ? saved : DEFAULT_MODEL;
+  });
+  const [usage, setUsage] = useState<Usage | null>(null);
+  const actionRefs = useRef<Map<string, ActionCardHandle>>(new Map());
+  const messagesRef = useRef<ChatMessage[]>(messages);
 
   // Set up speech-to-text (Web Speech API) for voice input, if the browser supports it.
   useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const speechWindow = window as SpeechWindow;
+    const SpeechRecognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
-    setSpeechSupported(true);
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       let transcript = "";
       for (let i = 0; i < event.results.length; i++) {
         transcript += event.results[i][0].transcript;
@@ -187,18 +252,6 @@ export default function ChatPage() {
     setInsights((prev) => prev.filter((i) => i.id !== id));
   };
 
-  const [messages, setMessages] = useState<ChatMessage[]>([welcomeMessage]);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [streamingId, setStreamingId] = useState<string | null>(null);
-  const [model, setModel] = useState<string>(DEFAULT_MODEL);
-  const [usage, setUsage] = useState<Usage | null>(null);
-  const actionRefs = useRef<Map<string, ActionCardHandle>>(new Map());
-  const messagesRef = useRef<ChatMessage[]>(messages);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
@@ -213,12 +266,6 @@ export default function ChatPage() {
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
-  }, []);
-
-  // Remember the user's model choice across sessions.
-  useEffect(() => {
-    const saved = localStorage.getItem("chat_model");
-    if (saved && AVAILABLE_MODELS.some((m) => m.id === saved)) setModel(saved);
   }, []);
 
   useEffect(() => {
@@ -253,11 +300,13 @@ export default function ChatPage() {
   };
 
   // Load the conversation list and jump into the most recent one, if any.
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     loadConversations().then((convos) => {
       if (convos.length > 0) selectConversation(convos[0].id);
     });
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -495,12 +544,16 @@ export default function ChatPage() {
   const isEmpty = messages.length === 1;
 
   const composer = (
-    <div className="flex items-end gap-2 rounded-3xl border border-border bg-card shadow-sm px-4 py-3 focus-within:ring-2 focus-within:ring-primary/30 transition-shadow">
+    <div className="flex items-end gap-2 rounded-[1.5rem] border border-border bg-card/95 shadow-[0_12px_32px_rgba(15,23,20,0.08)] px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary/25 transition-all dark:shadow-[0_14px_40px_rgba(0,0,0,0.35)]">
       <textarea
         rows={1}
         placeholder="Ask about your finances..."
         value={input}
         onChange={(e) => setInput(e.target.value)}
+        onInput={(e) => {
+          e.currentTarget.style.height = "auto";
+          e.currentTarget.style.height = `${Math.min(e.currentTarget.scrollHeight, 144)}px`;
+        }}
         disabled={loading}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
@@ -508,7 +561,7 @@ export default function ChatPage() {
             handleSend();
           }
         }}
-        className="flex-1 resize-none bg-transparent outline-none text-sm leading-relaxed max-h-32 placeholder:text-muted-foreground"
+        className="min-h-10 flex-1 resize-none bg-transparent py-2 outline-none text-sm leading-relaxed max-h-36 placeholder:text-muted-foreground"
       />
       {speechSupported && (
         <Button
@@ -517,7 +570,7 @@ export default function ChatPage() {
           variant={isListening ? "default" : "outline"}
           onClick={toggleListening}
           disabled={loading}
-          className="h-9 w-9 shrink-0 rounded-full"
+          className="h-10 w-10 shrink-0 rounded-full"
           aria-label={isListening ? "Stop voice input" : "Start voice input"}
           title={isListening ? "Stop voice input" : "Voice input"}
         >
@@ -529,7 +582,7 @@ export default function ChatPage() {
         size="icon"
         onClick={() => handleSend()}
         disabled={loading || !input.trim()}
-        className="h-9 w-9 shrink-0 rounded-full"
+        className="h-10 w-10 shrink-0 rounded-full shadow-sm"
         aria-label="Send message"
       >
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
@@ -538,11 +591,11 @@ export default function ChatPage() {
   );
 
   return (
-    <div className="flex w-full h-[calc(100vh-12rem)] md:h-[calc(100vh-9rem)] text-foreground gap-0">
+    <div className="relative -mx-4 flex h-[calc(100dvh-15.75rem)] min-h-[25rem] w-[calc(100%+2rem)] overflow-hidden border-y border-border bg-card/70 text-foreground shadow-sm sm:mx-0 sm:w-full sm:rounded-2xl sm:border md:h-[calc(100dvh-8.5rem)]">
       {/* Mobile backdrop */}
       {isMobile && sidebarOpen && (
         <div
-          className="fixed inset-0 z-20 bg-background/60 backdrop-blur-sm"
+          className="fixed inset-0 z-[60] bg-background/60 backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -550,91 +603,119 @@ export default function ChatPage() {
       {/* Conversation sidebar — overlay on mobile, inline on desktop */}
       <motion.div
         initial={false}
-        animate={{ width: isMobile ? (sidebarOpen ? 240 : 0) : (sidebarOpen ? 240 : 0), opacity: sidebarOpen ? 1 : 0 }}
+        animate={{ width: isMobile ? (sidebarOpen ? 288 : 0) : (sidebarOpen ? 240 : 0), opacity: sidebarOpen ? 1 : 0 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
-        className={isMobile ? "fixed left-0 top-0 bottom-0 z-30 overflow-hidden" : "shrink-0 self-stretch overflow-hidden"}
+        className={isMobile ? "fixed left-0 top-0 bottom-0 z-[70] overflow-hidden" : "shrink-0 self-stretch overflow-hidden"}
       >
-        <div className="w-60 h-full flex flex-col gap-1 border-r border-border bg-background pr-3 pl-1 overflow-y-auto pt-4">
-          <div className="flex items-center justify-between mb-2 pl-1">
-            <p className="text-xs font-bold text-muted-foreground tracking-wider uppercase">Chats</p>
+        <div className="h-full w-72 md:w-60 flex flex-col border-r border-border bg-background md:bg-muted/35 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border px-3 py-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="h-8 w-8 rounded-xl bg-primary/12 text-primary flex items-center justify-center shrink-0">
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold leading-tight">Chats</p>
+                <p className="text-[11px] text-muted-foreground">{conversations.length} saved</p>
+              </div>
+            </div>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(false)}
-              className="h-7 w-7"
+              className="h-8 w-8 shrink-0"
               aria-label="Hide sidebar"
               title="Hide sidebar"
             >
               <PanelLeft className="w-4 h-4" />
             </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={startNewChat} className="h-8 text-xs gap-1.5 mb-2 justify-start">
-            <Plus className="w-3.5 h-3.5" />
-            New chat
-          </Button>
-          {conversations.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => selectConversation(c.id)}
-              className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-left transition-colors ${
-                c.id === currentConversationId
-                  ? "bg-primary/10 text-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-              <span className="flex-1 truncate">{c.title || "New conversation"}</span>
-              <span
-                role="button"
-                onClick={(e) => deleteConversation(c.id, e)}
-                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 shrink-0 text-muted-foreground hover:text-destructive transition-opacity"
-                aria-label="Delete conversation"
-                title="Delete conversation"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </span>
-            </button>
-          ))}
-          {conversations.length === 0 && (
-            <p className="text-xs text-muted-foreground px-2.5 py-2">No conversations yet.</p>
-          )}
+          <div className="p-3">
+            <Button variant="outline" size="sm" onClick={startNewChat} className="h-9 w-full text-xs gap-1.5 justify-start bg-card">
+              <Plus className="w-3.5 h-3.5" />
+              New chat
+            </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-2 pb-3">
+            <div className="flex flex-col gap-1">
+              {conversations.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => selectConversation(c.id)}
+                  className={`group flex items-start gap-2 rounded-xl px-2.5 py-2.5 text-left transition-colors ${
+                    c.id === currentConversationId
+                      ? "bg-card text-foreground shadow-sm ring-1 ring-border"
+                      : "text-muted-foreground hover:bg-card/70 hover:text-foreground"
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-medium">{c.title || "New conversation"}</span>
+                    <span className="mt-0.5 block text-[10px] text-muted-foreground">{formatConversationDate(c.updated_at)}</span>
+                  </span>
+                  <span
+                    role="button"
+                    onClick={(e) => deleteConversation(c.id, e)}
+                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 shrink-0 text-muted-foreground hover:text-destructive transition-opacity"
+                    aria-label="Delete conversation"
+                    title="Delete conversation"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </span>
+                </button>
+              ))}
+              {conversations.length === 0 && (
+                <p className="text-xs text-muted-foreground px-2.5 py-2">No conversations yet.</p>
+              )}
+            </div>
+          </div>
         </div>
       </motion.div>
 
-      <div className="flex flex-col flex-1 min-w-0 pl-4">
+      <div className="flex flex-col flex-1 min-w-0 bg-background/70">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-3 border-b border-border bg-card/75 px-3 py-3 backdrop-blur md:px-4">
+          <div className="flex items-center gap-2 min-w-0 sm:gap-3">
             {!sidebarOpen && (
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setSidebarOpen(true)}
-                className="h-8 w-8"
+                className="h-9 w-9 shrink-0"
                 aria-label="Show sidebar"
                 title="Show sidebar"
               >
                 <PanelLeftOpen className="w-4 h-4" />
               </Button>
             )}
-            <p className="text-xs font-bold text-muted-foreground tracking-wider uppercase">FinWise Assistant</p>
+            <div className="hidden h-9 w-9 rounded-xl bg-primary/12 text-primary sm:flex items-center justify-center shrink-0">
+              <WalletCards className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">FinWise Assistant</p>
+              <p className="hidden truncate text-xs text-muted-foreground sm:block">
+                {loading ? "Working on your request" : currentConversationId ? "Conversation saved" : "New conversation"}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             {usage?.remainingTokens && usage?.limitTokens && (
-              <p className="text-xs text-muted-foreground hidden sm:block" title="Daily token usage remaining for this model">
+              <p className="hidden rounded-full border border-border bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground lg:block" title="Daily token usage remaining for this model">
                 {Number(usage.remainingTokens).toLocaleString()} / {Number(usage.limitTokens).toLocaleString()} tokens left
               </p>
             )}
             <Select value={model} onValueChange={setModel}>
-              <SelectTrigger className="h-8 w-auto text-xs gap-1.5 px-2.5 [&>span]:line-clamp-1">
-                <SelectValue />
+              <SelectTrigger
+                className="h-9 w-[6.75rem] min-w-0 max-w-[34vw] gap-1.5 px-2.5 text-xs sm:w-48 sm:max-w-none [&>span]:min-w-0 [&>span]:flex-1 [&>span]:overflow-hidden"
+                title={modelLabelById[model] || model}
+              >
+                <span className="block min-w-0 truncate text-left">{modelLabelById[model] || model}</span>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="w-[min(20rem,calc(100vw-2rem))]">
                 {AVAILABLE_MODELS.map((m) => (
                   <SelectItem key={m.id} value={m.id} className="text-xs">
-                    <span className="flex items-center gap-2">
-                      {m.label}
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="flex min-w-0 w-full items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate">{m.label}</span>
+                      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         {PROVIDER_LABELS[m.provider]}
                       </span>
                     </span>
@@ -648,7 +729,7 @@ export default function ChatPage() {
                 size="sm"
                 onClick={startNewChat}
                 disabled={loading || messages.length <= 1}
-                className="h-8 text-xs gap-1.5"
+                className="hidden h-9 text-xs gap-1.5 sm:inline-flex"
               >
                 <Plus className="w-3.5 h-3.5" />
                 New chat
@@ -660,7 +741,7 @@ export default function ChatPage() {
 
         {/* Proactive insights */}
         {insights.length > 0 && (
-          <div className="flex flex-col gap-2 pb-3">
+          <div className="flex flex-col gap-2 border-b border-border bg-background/50 px-3 py-3 md:px-4">
             <AnimatePresence initial={false}>
               {insights.map((insight) => (
                 <motion.div
@@ -668,7 +749,7 @@ export default function ChatPage() {
                   initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  className="w-full max-w-3xl mx-auto flex items-start gap-2.5 rounded-xl border border-border bg-primary/5 px-3.5 py-2.5 text-sm"
+                  className="w-full max-w-3xl mx-auto flex items-start gap-2.5 rounded-xl border border-primary/20 bg-primary/10 px-3.5 py-2.5 text-sm shadow-sm"
                 >
                   <Lightbulb className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                   <button
@@ -694,21 +775,25 @@ export default function ChatPage() {
 
         {isEmpty ? (
           /* Empty state — centered greeting + composer, Claude-style */
-          <div className="flex-1 flex flex-col items-center justify-center gap-6 px-4">
+          <div className="flex-1 overflow-y-auto px-4 py-5">
+            <div className="min-h-full flex flex-col items-center justify-center gap-4 sm:gap-6">
             <div className="flex flex-col items-center gap-3 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-primary/15 text-primary flex items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-primary/15 text-primary flex items-center justify-center shadow-sm ring-1 ring-primary/15 sm:w-14 sm:h-14">
                 <Sparkles className="w-6 h-6" />
               </div>
-              <h1 className="font-serif text-2xl md:text-3xl font-semibold tracking-tight">How can I help with your finances?</h1>
+              <div className="space-y-1">
+                <h1 className="font-serif text-xl font-semibold tracking-tight sm:text-2xl md:text-3xl">How can I help with your finances?</h1>
+                <p className="text-xs text-muted-foreground sm:text-sm">Ask about spending, budgets, goals, debts, or account changes.</p>
+              </div>
             </div>
             <div className="w-full max-w-2xl">{composer}</div>
-            <div className="flex flex-wrap items-center justify-center gap-2 max-w-2xl">
+            <div className="grid w-full max-w-2xl grid-cols-1 gap-2 sm:grid-cols-3">
               {suggestions.map((s) => (
                 <button
                   key={s}
                   onClick={() => handleSend(s)}
                   disabled={loading}
-                  className="text-xs px-3 py-1.5 rounded-full border border-border bg-card hover:bg-primary/10 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  className="min-h-12 rounded-xl border border-border bg-card px-3 py-2 text-left text-xs leading-relaxed text-muted-foreground shadow-sm transition-colors hover:bg-primary/10 hover:text-foreground disabled:opacity-50"
                 >
                   {s}
                 </button>
@@ -732,11 +817,12 @@ export default function ChatPage() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         ) : (
           <>
             {/* Conversation */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto flex flex-col gap-6 px-1 md:px-2">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto flex flex-col gap-6 px-3 py-5 md:px-6">
               <AnimatePresence initial={false}>
                 {messages.map((m) => (
                   <motion.div
@@ -749,7 +835,7 @@ export default function ChatPage() {
                       <div className="flex justify-end items-center gap-1.5 group">
                         <button
                           onClick={() => togglePinned(m.content)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary shrink-0"
+                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary shrink-0"
                           aria-label={pinnedQuestions.includes(m.content) ? "Unpin question" : "Pin question"}
                           title={pinnedQuestions.includes(m.content) ? "Unpin" : "Pin for quick access"}
                         >
@@ -759,13 +845,13 @@ export default function ChatPage() {
                             <Pin className="w-3.5 h-3.5" />
                           )}
                         </button>
-                        <div className="max-w-[80%] rounded-2xl bg-muted px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                        <div className="max-w-[86%] rounded-2xl rounded-tr-md bg-primary px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap text-primary-foreground shadow-sm sm:max-w-[78%]">
                           {m.content}
                         </div>
                       </div>
                     ) : (
                       <div className="flex items-start gap-3 group">
-                        <div className="w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                        <div className="w-8 h-8 rounded-xl bg-card text-primary flex items-center justify-center shrink-0 mt-0.5 shadow-sm ring-1 ring-border">
                           <Sparkles className="w-3.5 h-3.5" />
                         </div>
                         <div className="flex flex-col gap-3 flex-1 min-w-0">
@@ -813,7 +899,7 @@ export default function ChatPage() {
                         {m.id !== streamingId && (m.content || m.table) && (
                           <button
                             onClick={() => handleCopy(m)}
-                            className="self-start opacity-0 group-hover:opacity-100 transition-opacity text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+                            className="self-start opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1"
                             aria-label="Copy response"
                             title="Copy response"
                           >
@@ -837,7 +923,7 @@ export default function ChatPage() {
             </div>
 
             {/* Composer */}
-            <div className="pt-4">
+            <div className="border-t border-border bg-background/90 px-3 py-3 backdrop-blur md:px-6">
               <div className="w-full max-w-3xl mx-auto">{composer}</div>
             </div>
           </>

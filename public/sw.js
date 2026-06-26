@@ -1,6 +1,6 @@
-const CACHE_NAME = "finwise-v2";
+const CACHE_NAME = "finwise-v5";
 
-const PRECACHE_URLS = ["/icon.svg"];
+const PRECACHE_URLS = ["/logo-inside-app.png", "/logo-installable-app.png", "/vercel.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

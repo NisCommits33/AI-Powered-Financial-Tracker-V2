@@ -33,6 +33,13 @@ export function useTransactions() {
   };
 
   const createTransaction = async (transaction: Omit<Transaction, "id" | "created_at">) => {
+    if (!Number.isFinite(transaction.amount) || transaction.amount === 0) {
+      return { data: null, error: { message: "Transaction amount must be a non-zero number." } };
+    }
+    if (!transaction.account_id) {
+      return { data: null, error: { message: "Please select an account for this transaction." } };
+    }
+
     const { data, error } = await supabase
       .from("transactions")
       .insert(transaction)
@@ -46,6 +53,10 @@ export function useTransactions() {
   };
 
   const updateTransactionEntry = async (id: string, updates: Partial<Omit<Transaction, "id" | "created_at">>) => {
+    if (updates.amount !== undefined && (!Number.isFinite(updates.amount) || updates.amount === 0)) {
+      return { error: { message: "Transaction amount must be a non-zero number." } };
+    }
+
     const original = transactions.find((t) => t.id === id);
     const { error } = await supabase
       .from("transactions")

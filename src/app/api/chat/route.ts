@@ -936,7 +936,15 @@ ${snapshotExtras}`;
         }
 
         // Models sometimes return numeric fields as strings; coerce them.
-        for (const numericKey of ["amount", "balance", "monthly_limit"]) {
+        for (const numericKey of [
+          "amount",
+          "balance",
+          "monthly_limit",
+          "target_amount",
+          "current_amount",
+          "principal_amount",
+          "interest_rate",
+        ]) {
           if (typeof args[numericKey] === "string") {
             const num = Number(args[numericKey]);
             if (!Number.isNaN(num)) args[numericKey] = num;

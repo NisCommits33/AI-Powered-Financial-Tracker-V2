@@ -150,6 +150,24 @@ function EditField({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
+function requireFiniteMoney(value: unknown, label: string) {
+  const amount = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(amount)) throw new Error(`${label} must be a valid number.`);
+  return amount;
+}
+
+function requirePositiveMoney(value: unknown, label: string) {
+  const amount = requireFiniteMoney(value, label);
+  if (amount <= 0) throw new Error(`${label} must be greater than 0.`);
+  return amount;
+}
+
+function requireNonZeroMoney(value: unknown, label: string) {
+  const amount = requireFiniteMoney(value, label);
+  if (amount === 0) throw new Error(`${label} cannot be zero.`);
+  return amount;
+}
+
 export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onStatusChange?: (status: Status) => void }>(
   ({ action, onStatusChange }, ref) => {
     const [status, setStatusState] = useState<Status>(action.status || "pending");
@@ -204,7 +222,8 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
 
     if (action.type === "create_transaction") {
       const { amount, description, category, date, account_id, account_name, tags } = args;
-      const isExpense = amount < 0;
+      const amountValue = Number(amount);
+      const isExpense = amountValue < 0;
       editable = true;
       // The account this will hit (explicit choice, or fall back to first active).
       const resolvedAccount = accounts.find((a) => a.id === (account_id || accounts[0]?.id));
@@ -224,9 +243,10 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
           // yet), fall back to the user's first active account from the live store.
           const resolvedAccountId = account_id || accounts[0]?.id;
           if (!resolvedAccountId) throw new Error("No account available to log this transaction against.");
+          const safeAmount = requireNonZeroMoney(args.amount, "Transaction amount");
 
           const { error } = await createTransaction({
-            amount,
+            amount: safeAmount,
             description,
             category,
             date,
@@ -301,11 +321,11 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
             <p className="text-foreground/80">
               <span className="text-muted-foreground">{resolvedAccount.name}: </span>
               {formatNPR(resolvedAccount.balance)} <span className="text-muted-foreground">&rarr;</span>{" "}
-              <span className="font-semibold">{formatNPR(resolvedAccount.balance + amount)}</span>
+              <span className="font-semibold">{formatNPR(resolvedAccount.balance + amountValue)}</span>
             </p>
           )}
           {catBudget && catBudget.monthly_limit > 0 && (() => {
-            const after = catBudget.spent + Math.abs(amount);
+            const after = catBudget.spent + Math.abs(amountValue);
             const beforePct = Math.round((catBudget.spent / catBudget.monthly_limit) * 100);
             const afterPct = Math.round((after / catBudget.monthly_limit) * 100);
             return (
@@ -325,7 +345,8 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
       title = "Create Account";
       onConfirm = () =>
         run(async () => {
-          await addAccount({ name, type, balance: balance || 0, currency: currency || "NPR", color_tag });
+          const safeBalance = requireFiniteMoney(balance || 0, "Starting balance");
+          await addAccount({ name, type, balance: safeBalance, currency: currency || "NPR", color_tag });
           toast.success("Account created!");
         });
       content = (
@@ -344,12 +365,13 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
       const spent = withComputedSpent(budgets, transactions).find((b) => b.category === category && b.month === month)?.spent ?? 0;
       onConfirm = () =>
         run(async () => {
+          const safeLimit = requirePositiveMoney(args.monthly_limit, "Budget limit");
           const existing = budgets.find((b) => b.category === category && b.month === month);
           if (existing) {
-            const { error } = await updateBudgetEntry(existing.id, { monthly_limit });
+            const { error } = await updateBudgetEntry(existing.id, { monthly_limit: safeLimit });
             if (error) throw error;
           } else {
-            const { error } = await createBudget({ category, monthly_limit, spent: 0, month });
+            const { error } = await createBudget({ category, monthly_limit: safeLimit, spent: 0, month });
             if (error) throw error;
           }
           toast.success("Budget updated!");
@@ -429,7 +451,8 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
       onConfirm = () =>
         run(async () => {
           if (!account_id) throw new Error("Account not found");
-          await updateAccountEntry(account_id, { balance });
+          const safeBalance = requireFiniteMoney(balance, "Account balance");
+          await updateAccountEntry(account_id, { balance: safeBalance });
           await fetchAccounts();
           toast.success("Balance updated!");
         });
@@ -452,7 +475,7 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
         run(async () => {
           if (!transaction_id) throw new Error("Transaction not found");
           const updates: Record<string, unknown> = {};
-          if (amount !== undefined) updates.amount = amount;
+          if (amount !== undefined) updates.amount = requireNonZeroMoney(amount, "Transaction amount");
           if (description !== undefined) updates.description = description;
           if (category !== undefined) updates.category = category;
           if (date !== undefined) updates.date = date;
@@ -505,15 +528,28 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
       const { from_account_id, from_account_name, to_account_id, to_account_name, amount, date } = action.args;
       const fromAccount = accounts.find((a) => a.id === from_account_id);
       const toAccount = accounts.find((a) => a.id === to_account_id);
+      const amountValue = Number(amount);
+      const transferIssue =
+        from_account_id && to_account_id && from_account_id === to_account_id
+          ? "Choose two different accounts."
+          : fromAccount && Number.isFinite(amountValue) && amountValue > 0 && fromAccount.balance < amountValue
+          ? `Insufficient balance in ${fromAccount.name}. Available: ${formatNPR(fromAccount.balance)}.`
+          : null;
       icon = <ArrowLeftRight className="w-4 h-4" />;
       title = "Transfer Funds";
       onConfirm = () =>
         run(async () => {
           if (!from_account_id || !to_account_id) throw new Error("Couldn't find one of those accounts");
+          if (from_account_id === to_account_id) throw new Error("Choose two different accounts.");
+          if (!fromAccount || !toAccount) throw new Error("Couldn't find one of those accounts");
+          const safeAmount = requirePositiveMoney(amount, "Transfer amount");
+          if (fromAccount.balance < safeAmount) {
+            throw new Error(`Insufficient balance in ${fromAccount.name}. Available: ${formatNPR(fromAccount.balance)}.`);
+          }
           const txDate = date || new Date().toISOString().slice(0, 10);
           const { error: outError } = await createTransaction({
-            amount: -Math.abs(amount),
-            description: `Transfer to ${to_account_name}`,
+            amount: -safeAmount,
+            description: `Transfer to ${toAccount.name}`,
             category: "Other",
             date: txDate,
             account_id: from_account_id,
@@ -521,8 +557,8 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
           });
           if (outError) throw outError;
           const { error: inError } = await createTransaction({
-            amount: Math.abs(amount),
-            description: `Transfer from ${from_account_name}`,
+            amount: safeAmount,
+            description: `Transfer from ${fromAccount.name}`,
             category: "Other",
             date: txDate,
             account_id: to_account_id,
@@ -535,13 +571,21 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
       content = (
         <>
           <p>
-            <span className="font-semibold text-foreground">{formatNPR(Math.abs(amount))}</span>
+            <span className="font-semibold text-foreground">{formatNPR(Math.abs(amountValue || 0))}</span>
             {" "}from <span className="font-semibold text-foreground">{fromAccount?.name || from_account_name || "?"}</span>
             {" "}to <span className="font-semibold text-foreground">{toAccount?.name || to_account_name || "?"}</span>
           </p>
+          {fromAccount && (
+            <p className="text-foreground/80">
+              <span className="text-muted-foreground">{fromAccount.name} balance: </span>
+              {formatNPR(fromAccount.balance)} <span className="text-muted-foreground">&rarr;</span>{" "}
+              <span className="font-semibold">{formatNPR(fromAccount.balance - Math.abs(amountValue || 0))}</span>
+            </p>
+          )}
           {(!from_account_id || !to_account_id) && (
             <p className="text-destructive text-xs">Couldn&apos;t find one or both of those accounts.</p>
           )}
+          {transferIssue && <p className="text-destructive text-xs">{transferIssue}</p>}
         </>
       );
     } else if (action.type === "create_goal") {
@@ -550,11 +594,15 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
       title = "Create Savings Goal";
       onConfirm = () =>
         run(async () => {
+          const safeTarget = requirePositiveMoney(target_amount, "Goal target");
+          const safeCurrent = current_amount ? requireFiniteMoney(current_amount, "Current goal amount") : 0;
+          if (safeCurrent < 0) throw new Error("Current goal amount cannot be negative.");
+          if (safeCurrent > safeTarget) throw new Error("Current goal amount cannot exceed the target.");
           const { error } = await createGoal({
             name,
-            target_amount,
+            target_amount: safeTarget,
             target_date: target_date || null,
-            current_amount: current_amount || 0,
+            current_amount: safeCurrent,
           });
           if (error) throw error;
           toast.success("Goal created!");
@@ -574,7 +622,11 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
       onConfirm = () =>
         run(async () => {
           if (!goal_id) throw new Error("Couldn't find that goal");
-          const { error } = await contributeToGoal(goal_id, amount);
+          const safeAmount = requireNonZeroMoney(amount, "Goal contribution");
+          if (goal && safeAmount < 0 && Math.abs(safeAmount) > goal.current_amount) {
+            throw new Error(`Cannot withdraw more than the saved amount (${formatNPR(goal.current_amount)}).`);
+          }
+          const { error } = await contributeToGoal(goal_id, safeAmount);
           if (error) throw error;
           await fetchGoals();
           toast.success("Goal updated!");
@@ -596,11 +648,14 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
       title = isOwedByMe ? "Record Loan (You Owe)" : "Record Loan (Owed to You)";
       onConfirm = () =>
         run(async () => {
+          const safePrincipal = requirePositiveMoney(principal_amount, "Debt amount");
+          const safeInterest = interest_rate ? requireFiniteMoney(interest_rate, "Interest rate") : null;
+          if (safeInterest !== null && safeInterest < 0) throw new Error("Interest rate cannot be negative.");
           const { error } = await createDebt({
             person,
             direction,
-            principal_amount,
-            interest_rate: interest_rate || null,
+            principal_amount: safePrincipal,
+            interest_rate: safeInterest,
             due_date: due_date || null,
             notes: notes || null,
           });
@@ -622,7 +677,11 @@ export const ActionCard = forwardRef<ActionCardHandle, { action: ChatAction; onS
       onConfirm = () =>
         run(async () => {
           if (!debt_id) throw new Error("Couldn't find that debt record");
-          const { error } = await recordPayment(debt_id, Math.abs(amount));
+          const safeAmount = requirePositiveMoney(amount, "Debt payment");
+          if (debt && safeAmount > debt.remaining_amount) {
+            throw new Error(`Payment cannot exceed the remaining balance (${formatNPR(debt.remaining_amount)}).`);
+          }
+          const { error } = await recordPayment(debt_id, safeAmount);
           if (error) throw error;
           await fetchDebts();
           toast.success("Payment recorded!");

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
@@ -51,9 +52,14 @@ export default function SidebarNav() {
       <div className="flex flex-col gap-8">
         {/* App Logo/Header */}
         <div className={cn("flex items-center gap-3", sidebarCollapsed ? "justify-center px-0" : "px-2")}>
-          <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg shadow-sm shadow-primary/30 shrink-0">
-            F
-          </div>
+          <Image
+            src="/logo-inside-app.png"
+            alt="FinWise logo"
+            width={40}
+            height={40}
+            priority
+            className="h-10 w-10 rounded-2xl object-cover shadow-sm shadow-primary/30 shrink-0"
+          />
           {!sidebarCollapsed && (
             <div className="overflow-hidden whitespace-nowrap">
               <h1 className="font-serif font-semibold text-xl tracking-tight text-foreground">

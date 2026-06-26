@@ -16,6 +16,7 @@ import {
 import { Account } from "@/types";
 import { useTransactions } from "@/hooks/useTransactions";
 import { toast } from "sonner";
+import { formatNPR } from "@/lib/utils";
 
 const transferSchema = z
   .object({
@@ -45,6 +46,7 @@ export function TransferForm({ accounts, onSuccess }: TransferFormProps) {
     formState: { errors },
     watch,
     setValue,
+    setError,
   } = useForm<TransferFormData>({
     resolver: zodResolver(transferSchema) as any,
     defaultValues: {
@@ -57,11 +59,21 @@ export function TransferForm({ accounts, onSuccess }: TransferFormProps) {
 
   const fromAccountId = watch("from_account_id");
   const toAccountId = watch("to_account_id");
+  const watchedAmount = Number(watch("amount") || 0);
+  const selectedFromAccount = accounts.find((a) => a.id === fromAccountId);
+  const hasInsufficientFunds =
+    Boolean(selectedFromAccount) && watchedAmount > 0 && selectedFromAccount!.balance < watchedAmount;
 
   const onSubmit = async (data: TransferFormData) => {
     const fromAccount = accounts.find((a) => a.id === data.from_account_id);
     const toAccount = accounts.find((a) => a.id === data.to_account_id);
     if (!fromAccount || !toAccount) return;
+    if (fromAccount.balance < data.amount) {
+      const message = `Insufficient balance in ${fromAccount.name}. Available: ${formatNPR(fromAccount.balance)}.`;
+      setError("amount", { type: "manual", message });
+      toast.error(message);
+      return;
+    }
 
     const { error: outError } = await createTransaction({
       amount: -Math.abs(data.amount),
@@ -113,7 +125,7 @@ export function TransferForm({ accounts, onSuccess }: TransferFormProps) {
           <SelectContent>
             {accounts.map((a) => (
               <SelectItem key={a.id} value={a.id}>
-                {a.name}
+                {a.name} · {formatNPR(a.balance)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -146,8 +158,16 @@ export function TransferForm({ accounts, onSuccess }: TransferFormProps) {
       {/* Amount */}
       <div className="space-y-2">
         <Label htmlFor="amount">Amount (NPR)</Label>
-        <Input id="amount" type="number" placeholder="0" step="0.01" {...register("amount")} />
+        <Input id="amount" type="number" placeholder="0" step="0.01" min="0.01" {...register("amount")} />
+        {selectedFromAccount && (
+          <p className="text-xs text-muted-foreground">
+            Available in {selectedFromAccount.name}: {formatNPR(selectedFromAccount.balance)}
+          </p>
+        )}
         {errors.amount && <p className="text-destructive text-sm">{errors.amount.message}</p>}
+        {hasInsufficientFunds && !errors.amount && (
+          <p className="text-destructive text-sm">Transfer amount exceeds the source account balance.</p>
+        )}
       </div>
 
       {/* Date */}
@@ -157,7 +177,7 @@ export function TransferForm({ accounts, onSuccess }: TransferFormProps) {
         {errors.date && <p className="text-destructive text-sm">{errors.date.message}</p>}
       </div>
 
-      <Button type="submit" disabled={loading} className="w-full">
+      <Button type="submit" disabled={loading || hasInsufficientFunds} className="w-full">
         {loading ? "Transferring..." : "Transfer"}
       </Button>
     </form>
