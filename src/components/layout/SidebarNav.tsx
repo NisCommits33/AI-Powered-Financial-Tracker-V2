@@ -53,7 +53,7 @@ export default function SidebarNav() {
         {/* App Logo/Header */}
         <div className={cn("flex items-center gap-3", sidebarCollapsed ? "justify-center px-0" : "px-2")}>
           <Image
-            src="/logo-inside-app.png"
+            src="/final-logo.png"
             alt="FinWise logo"
             width={40}
             height={40}

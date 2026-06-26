@@ -21,7 +21,7 @@ export function AuthCard({ title, description, children }: AuthCardProps) {
       <Card className="flex flex-col gap-6 p-8">
         <div className="flex flex-col items-center gap-3 text-center">
           <Image
-            src="/logo-inside-app.png"
+            src="/final-logo.png"
             alt="FinWise logo"
             width={56}
             height={56}

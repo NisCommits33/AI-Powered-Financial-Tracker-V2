@@ -33,8 +33,8 @@ export const metadata: Metadata = {
     title: "FinWise",
   },
   icons: {
-    icon: "/logo-installable-app.png",
-    apple: "/logo-installable-app.png",
+    icon: "/final-logo.png",
+    apple: "/final-logo.png",
   },
 };
 

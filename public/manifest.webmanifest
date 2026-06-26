@@ -9,13 +9,13 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "/logo-installable-app.png",
+      "src": "/final-logo.png",
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/logo-installable-app.png",
+      "src": "/final-logo.png",
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "maskable"
