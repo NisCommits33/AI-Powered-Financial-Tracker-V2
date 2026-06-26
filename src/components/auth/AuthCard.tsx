@@ -20,16 +20,18 @@ export function AuthCard({ title, description, children }: AuthCardProps) {
     >
       <Card className="flex flex-col gap-6 p-8">
         <div className="flex flex-col items-center gap-3 text-center">
-          <Image
-            src="/final-logo.png"
-            alt="FinWise logo"
-            width={56}
-            height={56}
-            priority
-            className="h-14 w-14 rounded-2xl object-cover shadow-sm shadow-primary/30"
-          />
+          <div className="h-24 w-24 overflow-hidden rounded-full">
+            <Image
+              src="/final-logo.png"
+              alt="FinWise logo"
+              width={96}
+              height={96}
+              priority
+              className="h-full w-full scale-[1.18] rounded-full object-cover"
+            />
+          </div>
           <div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-wider text-primary">FinWise</p>
+            <p className="mb-1 text-xs font-bold uppercase tracking-wider text-[#9b7a22]">FinWise</p>
             <h1 className="font-serif text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{description}</p>
           </div>

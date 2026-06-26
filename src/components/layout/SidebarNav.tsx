@@ -52,20 +52,22 @@ export default function SidebarNav() {
       <div className="flex flex-col gap-8">
         {/* App Logo/Header */}
         <div className={cn("flex items-center gap-3", sidebarCollapsed ? "justify-center px-0" : "px-2")}>
-          <Image
-            src="/final-logo.png"
-            alt="FinWise logo"
-            width={40}
-            height={40}
-            priority
-            className="h-10 w-10 rounded-2xl object-cover shadow-sm shadow-primary/30 shrink-0"
-          />
+          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full">
+            <Image
+              src="/final-logo.png"
+              alt="FinWise logo"
+              width={48}
+              height={48}
+              priority
+              className="h-full w-full scale-[1.18] rounded-full object-cover"
+            />
+          </div>
           {!sidebarCollapsed && (
             <div className="overflow-hidden whitespace-nowrap">
               <h1 className="font-serif font-semibold text-xl tracking-tight text-foreground">
                 FinWise
               </h1>
-              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">finance tracker</p>
+              <p className="text-[10px] text-[#9b7a22] font-bold uppercase tracking-wider">finance tracker</p>
             </div>
           )}
         </div>
